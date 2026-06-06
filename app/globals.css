@@ -1,26 +1,242 @@
 @import "tailwindcss";
 
+/* ============================================================
+   GES — BRUTALIST / MONO DESIGN SYSTEM
+   Pure black + white + one acid accent. Hard borders, offset
+   shadows, mono labels, sharp corners, exposed grid.
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #0a0a0a;
+  --paper: #ffffff;
+  --bone: #efeee7;       /* warm off-white panel */
+  --acid: #ccff00;       /* primary accent — the brand pop (logo, hero, highlights) */
+  --acid-deep: #aee000;
+  --amber: #e0a11e;      /* secondary accent — warm, used sparingly (eyebrows, stat ticks) */
+  --amber-deep: #c4880f; /* amber tuned for light / bone backgrounds (better contrast) */
+  --ash: #6e6e6e;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--acid);
+    color: var(--ink);
+  }
+
+  /* blocky scrollbar */
+  ::-webkit-scrollbar {
+    width: 12px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--ink);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--ash);
+    border: 2px solid var(--ink);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--acid);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Section theme contexts ──
+   Each <section> chooses one. Children read --fg / --bg / --line / --muted,
+   so the same brutalist primitives invert automatically on dark blocks. */
+.sec-light { --bg: var(--paper); --fg: var(--ink);   --line: var(--ink);   --muted: #5f5f5f; background: var(--bg); color: var(--fg); }
+.sec-bone  { --bg: var(--bone);  --fg: var(--ink);   --line: var(--ink);   --muted: #5f5f5f; background: var(--bg); color: var(--fg); }
+.sec-dark  { --bg: var(--ink);   --fg: var(--paper); --line: var(--paper); --muted: #9a9a9a; background: var(--bg); color: var(--fg); }
+.sec-acid  { --bg: var(--acid);  --fg: var(--ink);   --line: var(--ink);   --muted: #44480f; background: var(--bg); color: var(--fg); }
+
+/* ── Hard-edged surfaces ── */
+.hard     { border: 2px solid var(--line); box-shadow: 6px 6px 0 0 var(--line); }
+.hard-sm  { border: 2px solid var(--line); box-shadow: 4px 4px 0 0 var(--line); }
+.hard-lg  { border: 3px solid var(--line); box-shadow: 10px 10px 0 0 var(--line); }
+.bordered { border: 2px solid var(--line); }
+
+.lift { transition: transform 0.14s ease, box-shadow 0.14s ease; }
+.lift:hover { transform: translate(-3px, -3px); box-shadow: 10px 10px 0 0 var(--line); }
+
+/* ── Mono label / eyebrow ── */
+.mono { font-family: var(--font-mono), ui-monospace, monospace; }
+.eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
 }
+
+/* ── Display headline helper ── */
+.display {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 0.88;
+  text-transform: uppercase;
+}
+
+/* ── Buttons ── */
+.btn-brut {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+  padding: 0.9rem 1.5rem;
+  /* Monochrome primary — inverts per section context. Green is reserved
+     for the logo, GES lettering and text highlights, not buttons. */
+  background: var(--fg, var(--ink));
+  color: var(--bg, var(--paper));
+  border: 2px solid var(--fg, var(--ink));
+  box-shadow: 5px 5px 0 0 var(--line);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+}
+.btn-brut:hover  { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 0 var(--line); }
+.btn-brut:active { transform: translate(2px, 2px);   box-shadow: 1px 1px 0 0 var(--line); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+  padding: 0.9rem 1.5rem;
+  background: transparent;
+  color: var(--fg);
+  border: 2px solid var(--line);
+  box-shadow: 5px 5px 0 0 var(--line);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s, color 0.12s;
+  cursor: pointer;
+}
+.btn-ghost:hover  { background: var(--fg); color: var(--bg); transform: translate(-2px, -2px); box-shadow: 8px 8px 0 0 var(--line); }
+.btn-ghost:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--line); }
+
+/* ── Animated underline link ── */
+.ul-link { position: relative; }
+.ul-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  width: 0;
+  height: 2px;
+  background: currentColor;
+  transition: width 0.25s ease;
+}
+.ul-link:hover::after { width: 100%; }
+
+/* ── Faint construction grid ── */
+.grid-lines {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--line) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--line) 8%, transparent) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+
+/* ── Marquee ticker ── */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee { display: flex; overflow: hidden; white-space: nowrap; }
+.marquee-track {
+  display: inline-flex;
+  flex-shrink: 0;
+  min-width: 100%;
+  animation: marquee 28s linear infinite;
+}
+
+/* ── Entry animations (fire before hydration) ── */
+@keyframes b-up   { from { opacity: 0; transform: translateY(20px); }  to { opacity: 1; transform: translateY(0); } }
+@keyframes b-down { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes b-in   { from { opacity: 0; } to { opacity: 1; } }
+
+.entry-nav { animation: b-down 0.5s ease-out both; }
+.entry-d0  { animation: b-up 0.55s ease-out 0.05s both; }
+.entry-d1  { animation: b-up 0.6s  ease-out 0.15s both; }
+.entry-d2  { animation: b-up 0.6s  ease-out 0.3s  both; }
+.entry-d3  { animation: b-up 0.6s  ease-out 0.45s both; }
+.entry-d4  { animation: b-up 0.6s  ease-out 0.6s  both; }
+.entry-d5  { animation: b-in 0.8s  ease-out 0.9s  both; }
+
+/* ── Mono cursor blink ── */
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.blink { animation: blink 1.1s step-end infinite; }
+
+/* ============================================================
+   PORTAL / GLASS SYSTEM  (client login + preview only)
+   Deliberately separate from the brutalist landing: soft, dark,
+   frosted, premium. The landing stays hard-edged; the portal
+   feels like a private, high-end client area.
+   ============================================================ */
+
+/* Faint construction grid for dark portal backgrounds */
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 38px 38px;
+}
+
+/* Frosted glass panel */
+.glass {
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 24px 70px -24px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Gradient primary action (portal only) */
+.btn-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.95rem 1.5rem;
+  border-radius: 0.85rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #a855f7 100%);
+  box-shadow: 0 14px 34px -10px rgba(99, 102, 241, 0.6);
+  transition: box-shadow 0.25s ease, transform 0.15s ease, filter 0.2s ease;
+  cursor: pointer;
+}
+.btn-primary:hover  { filter: brightness(1.08); box-shadow: 0 18px 44px -10px rgba(99, 102, 241, 0.78); }
+.btn-primary:active { transform: translateY(1px); }
+
+/* Ambient floating blobs */
+@keyframes float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50%      { transform: translateY(-26px) translateX(12px); }
+}
+.animate-float    { animation: float 11s ease-in-out infinite; }
+.animate-float-d1 { animation: float 13s ease-in-out infinite; animation-delay: -4s; }

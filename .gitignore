@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# rejected legacy build (archive only — never ship)
+/OLD/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
