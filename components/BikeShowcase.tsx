@@ -1,13 +1,7 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import {
-  motion,
-  useScroll,
-  useTransform,
-  useMotionValueEvent,
-  type MotionValue,
-} from "framer-motion";
+import { useRef, useEffect, useState, forwardRef } from "react";
+import { useScroll, useMotionValueEvent } from "framer-motion";
 
 const FRAME_COUNT = 192;
 const framePath = (i: number) =>
@@ -16,6 +10,14 @@ const framePath = (i: number) =>
 // The frame scrub completes at this scroll progress; the remaining scroll is a
 // static HOLD so visitors can read every part label before the section releases.
 const SCRUB_END = 0.66;
+
+// The heading is fully gone by this scroll progress and never returns.
+const HEADER_FADE_END = 0.2;
+
+// The whole scene dissolves to black across this range, then stays gone, so it
+// melts into the next section instead of snapping back at the boundary.
+const SCENE_DISSOLVE_START = 0.88;
+const SCENE_DISSOLVE_END = 0.99;
 
 // Show the full composed frame (no zoom-in). The exploded render places the
 // wheels right at the edges, so any overscale slices them in half — 1.0 keeps
@@ -53,51 +55,43 @@ const PARTS: Part[] = [
 
 type Rect = { x: number; y: number; w: number; h: number };
 
-function PartLabel({
-  part,
-  index,
-  progress,
-  rect,
-}: {
-  part: Part;
-  index: number;
-  progress: MotionValue<number>;
-  rect: Rect;
-}) {
-  // Snap to FULL opacity quickly, then hold — by the time the bike settles the
-  // label is solidly readable, never a faint ghost.
-  const opacity = useTransform(
-    progress,
-    [part.at - 0.05, part.at - 0.01],
-    [0, 1]
-  );
-  const left = rect.x + (part.x / 100) * rect.w;
-  const top = rect.y + (part.y / 100) * rect.h;
-
-  return (
-    <motion.div
-      style={{ opacity, left, top, transform: "translate(-50%, -50%)" }}
-      className={`absolute z-20 pointer-events-none select-none ${
-        part.hideMobile ? "hidden sm:block" : ""
-      }`}
-    >
-      {/* Acid border + white text reads instantly against the black void; the
-          dark offset shadow keeps it from blending where it overlaps the bike. */}
-      <span className="inline-flex items-center gap-2 bg-[#0a0a0a] border-2 border-[#ccff00] px-2.5 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,0.9)]">
-        <span className="w-2 h-2 bg-[#ccff00]" />
-        <span className="mono text-[11px] font-bold uppercase tracking-[0.16em] text-white whitespace-nowrap">
-          {String(index + 1).padStart(2, "0")} {part.label}
+// Position is declarative (tracks the contained image rect); opacity is driven
+// imperatively by the parent's scroll handler so it snaps in then HOLDS at full —
+// framer's MotionValue-to-style binding gets hardware-accelerated onto a native
+// ViewTimeline that mis-tracks this pinned section and made labels fade back out.
+const PartLabel = forwardRef<HTMLDivElement, { part: Part; index: number; rect: Rect }>(
+  function PartLabel({ part, index, rect }, ref) {
+    const left = rect.x + (part.x / 100) * rect.w;
+    const top = rect.y + (part.y / 100) * rect.h;
+    return (
+      <div
+        ref={ref}
+        style={{ opacity: 0, left, top, transform: "translate(-50%, -50%)" }}
+        className={`absolute z-20 pointer-events-none select-none ${
+          part.hideMobile ? "hidden sm:block" : ""
+        }`}
+      >
+        {/* Acid border + white text reads instantly against the black void; the
+            dark offset shadow keeps it from blending where it overlaps the bike. */}
+        <span className="inline-flex items-center gap-2 bg-[#0a0a0a] border-2 border-[#ccff00] px-2.5 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,0.9)]">
+          <span className="w-2 h-2 bg-[#ccff00]" />
+          <span className="mono text-[11px] font-bold uppercase tracking-[0.16em] text-white whitespace-nowrap">
+            {String(index + 1).padStart(2, "0")} {part.label}
+          </span>
         </span>
-      </span>
-    </motion.div>
-  );
-}
+      </div>
+    );
+  }
+);
 
 export default function BikeShowcase() {
   const trackRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagesRef = useRef<HTMLImageElement[]>([]);
   const currentFrame = useRef(0);
+  const headingRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const [loaded, setLoaded] = useState(0);
   const [ready, setReady] = useState(false);
@@ -108,9 +102,20 @@ export default function BikeShowcase() {
     offset: ["start start", "end end"],
   });
 
-  // The title owns the opening third of the scroll (its own moment), then clears
-  // well before any part label appears.
-  const headerOpacity = useTransform(scrollYProgress, [0, 0.18, 0.3], [1, 1, 0]);
+  // The heading is visible the instant the section pins (over the still-assembled
+  // bike), then fades cleanly OUT — fully gone by HEADER_FADE_END of the scroll —
+  // and never comes back. It is driven IMPERATIVELY (see the scroll handler below)
+  // instead of binding a scroll-derived MotionValue to style: framer hardware-
+  // accelerates that binding onto a native ViewTimeline, whose progress doesn't
+  // track this pinned 600vh section, which made the heading fade out and then
+  // creep back in. Setting opacity by hand in the proven scroll handler keeps the
+  // fade strictly one-way.
+
+  // The fully-exploded + labeled bike HOLDS through the middle of the scroll so
+  // there's genuine time to read every part, THEN the whole scene dissolves to
+  // black into the next section. No hard cut, no frozen linger. Driven imperatively
+  // for the same reason as the heading — framer's ViewTimeline acceleration made
+  // the dissolved scene pop back to full opacity right at the section boundary.
 
   // ── Fit the frame inside the viewport canvas (contain) ──
   const computeRect = (cssW: number, cssH: number): Rect => {
@@ -198,17 +203,54 @@ export default function BikeShowcase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Map scroll → frame index. The scrub finishes at SCRUB_END, then the last
-  //    frame HOLDS for the rest of the scroll so the fully-exploded, fully-
-  //    labeled bike stays on screen long enough to actually read. ──
-  useMotionValueEvent(scrollYProgress, "change", (v) => {
+  // ── One place that maps the scroll value → every scroll-driven visual here.
+  //    Everything is applied IMPERATIVELY rather than binding scroll-derived
+  //    MotionValues to style: framer hardware-accelerates those onto a native
+  //    ViewTimeline that does NOT track this pinned 600vh section, which made the
+  //    heading and labels fade back in/out and the dissolved scene snap back to
+  //    full opacity right at the boundary. ──
+  const applyScroll = (v: number) => {
+    // Frame scrub: finishes at SCRUB_END, then the last frame HOLDS so the fully
+    // exploded, labeled bike stays on screen long enough to actually read.
     const p = Math.min(1, v / SCRUB_END);
     const idx = Math.min(
       FRAME_COUNT - 1,
       Math.max(0, Math.round(p * (FRAME_COUNT - 1)))
     );
     if (idx !== currentFrame.current) drawFrame(idx);
-  });
+
+    // Heading: one-way fade, 1 at the top → 0 by HEADER_FADE_END, then stays gone.
+    const h = headingRef.current;
+    if (h) h.style.opacity = String(Math.max(0, 1 - v / HEADER_FADE_END));
+
+    // Part labels: each snaps in just before its name settles, then HOLDS at full
+    // so there's genuine time to read it.
+    for (let i = 0; i < PARTS.length; i++) {
+      const el = labelRefs.current[i];
+      if (!el) continue;
+      const o = (v - (PARTS[i].at - 0.05)) / 0.04;
+      el.style.opacity = String(Math.min(1, Math.max(0, o)));
+    }
+
+    // Scene dissolve: holds at 1, fades to 0 across the dissolve range, stays 0.
+    const s = sceneRef.current;
+    if (s) {
+      const d =
+        (v - SCENE_DISSOLVE_START) /
+        (SCENE_DISSOLVE_END - SCENE_DISSOLVE_START);
+      s.style.opacity = String(Math.min(1, Math.max(0, 1 - d)));
+    }
+  };
+
+  useMotionValueEvent(scrollYProgress, "change", applyScroll);
+
+  // Re-apply once the labels actually mount (frames finished loading) or the rect
+  // changes, so opacities are correct even if the section is already in view and
+  // the user isn't actively scrolling at that moment.
+  useEffect(() => {
+    if (ready) applyScroll(scrollYProgress.get());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, rect]);
 
   const pct = Math.round((loaded / FRAME_COUNT) * 100);
 
@@ -220,15 +262,17 @@ export default function BikeShowcase() {
       style={{ height: "600vh", backgroundColor: BG }}
     >
       <div
+        ref={sceneRef}
         className="sticky top-0 h-screen w-full overflow-hidden"
-        style={{ backgroundColor: BG }}
+        style={{ backgroundColor: BG, opacity: 1 }}
       >
         {/* full-bleed scrubbing canvas */}
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
         {/* ── Heading (clears out as the explosion takes over) ── */}
-        <motion.div
-          style={{ opacity: headerOpacity }}
+        <div
+          ref={headingRef}
+          style={{ opacity: 1 }}
           className="absolute top-0 left-0 right-0 z-20 pt-24 sm:pt-28 px-6 text-center pointer-events-none"
         >
           <h2 className="display text-[clamp(2rem,6vw,4.5rem)] text-white">
@@ -237,7 +281,7 @@ export default function BikeShowcase() {
               Take Apart
             </span>
           </h2>
-        </motion.div>
+        </div>
 
         {/* ── Brutalist part callouts ── */}
         {ready &&
@@ -247,8 +291,10 @@ export default function BikeShowcase() {
               key={p.label}
               part={p}
               index={i}
-              progress={scrollYProgress}
               rect={rect}
+              ref={(el) => {
+                labelRefs.current[i] = el;
+              }}
             />
           ))}
 

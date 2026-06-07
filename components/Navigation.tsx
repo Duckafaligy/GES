@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
@@ -23,15 +23,29 @@ const tickerItems = [
 export default function Navigation() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
 
+  // Stay transparent (black, light text) across the two dark hero sections —
+  // VideoHero + the tall BikeShowcase. Only switch to the solid bar once the
+  // showcase (#showcase) has scrolled up behind the fixed nav, i.e. the visible
+  // viewport is now the light Services section and everything after it.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60);
+    const onScroll = () => {
+      const showcase = document.getElementById("showcase");
+      const navH = navRef.current?.offsetHeight ?? 92;
+      if (showcase) {
+        setScrolled(showcase.getBoundingClientRect().bottom <= navH);
+      } else {
+        setScrolled(window.scrollY > 60); // fallback if the section isn't present
+      }
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
-    <nav className="entry-nav fixed top-0 left-0 right-0 z-50">
+    <nav ref={navRef} className="entry-nav fixed top-0 left-0 right-0 z-50">
       {/* ── Acid ticker strip ── */}
       <div className="marquee h-7 items-center bg-[var(--acid)] text-[#0a0a0a] border-b-2 border-[#0a0a0a]">
         {[0, 1].map((k) => (

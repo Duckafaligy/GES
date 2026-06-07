@@ -72,6 +72,7 @@ const tabs: Tab[] = [
 export default function ThreeDFeatures() {
   const [active, setActive] = useState("premium");
   const current = tabs.find((t) => t.id === active)!;
+  const videoSrc = tabs.find((t) => t.video)?.video;
 
   return (
     <section id="3d-features" className="sec-bone py-24 border-t-2 border-[var(--line)]">
@@ -128,8 +129,8 @@ export default function ThreeDFeatures() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.3 }}
-            className="grid md:grid-cols-2 gap-9 items-start"
           >
+            <div className="grid md:grid-cols-2 gap-9 items-start">
               {/* Left — detached text card */}
               <div className="hard bg-[var(--paper)] p-7 md:p-9">
                 <div className="eyebrow text-[var(--muted)] mb-3">{current.tagline}</div>
@@ -156,10 +157,7 @@ export default function ThreeDFeatures() {
                 </div>
               </div>
 
-              {/* Right — Live viewer when the tier has a video, else capability stack */}
-              {current.video ? (
-                <ProductViewer src={current.video} />
-              ) : (
+              {/* Right — What You Get capability stack (shown on every tab) */}
               <div>
                 <div className="eyebrow text-[var(--muted)] mb-4">What You Get</div>
                 <div className="space-y-3">
@@ -182,9 +180,21 @@ export default function ThreeDFeatures() {
                   ))}
                 </div>
               </div>
-              )}
+            </div>
           </motion.div>
         </AnimatePresence>
+
+        {/* Bottom — live 360° turntable driven by pre-split frames. Mounted once
+            so the preloaded frames stay cached across tab switches (no re-prepare);
+            shown only while the tier that ships it is active. */}
+        {videoSrc && (
+          <div className={current.video ? "mt-9 pt-9 border-t-2 border-[var(--line)]" : "hidden"}>
+            {/* 184 = exactly one full revolution of the source clip; frames 185-192
+                retrace the start (over-rotation), so we loop 1-184 for a seamless
+                wrap with no skip. Drag covers the full 360° either way. */}
+            <ProductViewer frameDir="/product-360" frameCount={184} />
+          </div>
+        )}
       </div>
     </section>
   );
