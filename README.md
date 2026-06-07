@@ -51,8 +51,11 @@ app/
   login/              Client portal login route (SHA-256 gate)
   preview/            Per-client preview build viewer
   api/                Route handlers (server-side endpoints)
+  (site)/             Route group: standalone content pages (footer Services + Legal links); its layout renders a solid nav + the footer
+    services/{local-business-sites,e-commerce-websites,3d-product-models}/
+    privacy-policy/ , terms-of-service/
 components/
-  Navigation.tsx      Sticky top nav + marquee ticker + Client Portal link
+  Navigation.tsx      Sticky top nav + marquee ticker; `forceSolid` mode for light pages + logo routes to the first section
   VideoHero.tsx       Full-bleed background hero video with a self-learning seamless loop
   BikeShowcase.tsx    Scroll-scrubbed 192-frame bike "explode" with part callouts
   ThreeDFeatures.tsx  "Products That Feel Real Online" — 3 capability tabs (one with a live viewer)
@@ -62,7 +65,9 @@ components/
   Process.tsx         Process / how-we-work timeline
   Stats.tsx           Headline stats band
   Contact.tsx         Contact / book-a-call section
-  Footer.tsx          Footer
+  Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
+  ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
+  LegalDoc.tsx        Data-driven layout for the legal pages (Privacy Policy, Terms of Service)
 lib/clients.ts        Client lookup helpers for the portal
 data/clients.json     Client records (slugs, display names, SHA-256 hashed passcodes — no plaintext)
 scripts/generate-hash.js   Helper to mint a SHA-256 hash for a new client passcode
@@ -140,6 +145,17 @@ stored hash in `data/clients.json` (no plaintext passcodes are stored or
 committed). On match, the matching preview build is shown. Use
 `node scripts/generate-hash.js` to mint the hash for a new client.
 
+### Footer links & standalone pages (`app/(site)`, `Footer.tsx`)
+Every footer link resolves to real content. **Services** and **Legal** links
+open dedicated pages under the `app/(site)` route group, which shares one
+`layout.tsx` — a `forceSolid` `<Navigation>` (so the bar reads on light
+backgrounds) plus the `<Footer>`. The three service pages render from a single
+data-driven `ServiceDetail` component and the two legal pages from `LegalDoc`,
+so adding another is just a block of data. **Company** links point at the
+existing home anchors (`/#ownership`, `/#process`) and the client portal. The
+nav logo points home; when you are already on `/` it smooth-scrolls back to the
+first section instead of being a no-op.
+
 ## Design system
 
 Defined as CSS custom properties and utilities in `app/globals.css`.
@@ -173,12 +189,25 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
   numbers inside the per-client portal rather than on the public page.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
-## Recent changes (latest session)
+## Recent changes
 
+### v0.3.0 — footer pages + navigation
+- **Footer links are live.** The dead `<span>`s are now real `<Link>`s.
+  **Services** and **Legal** open dedicated pages; **Company** points at the home
+  anchors (`/#ownership`, `/#process`) and the client portal.
+- **Standalone content pages.** New `app/(site)` route group with a shared
+  solid-nav + footer layout, powered by two data-driven components —
+  `ServiceDetail` (3 service pages) and `LegalDoc` (Privacy Policy, Terms of
+  Service).
+- **Navigation.** Added a `forceSolid` prop so the bar stays readable over light
+  pages; the logo smooth-scrolls to the first section when already on `/` and
+  routes home from any sub-page.
+
+### v0.2.0 — 360° viewer + showcase polish
 - **Bike showcase:** removed the edge-bleed letterbox (the "stretched colours"
   on the X/Y bars); section + canvas + bars are now one flat `#000000` matching
   the render. Rewrote part labels for legibility (acid border, white 11px text,
-  snap-to-full opacity).
+  snap-to-full opacity). Heading now fully fades out before 20% of the scroll.
 - **Section 04 (3D):** dropped the **Standard 3D** tier; tabs are now
   **Premium 3D Model**, **Landing Scroll Animation**, and
   **Workflows · Agents · Automation**. The Premium 360° viewer was moved out of
