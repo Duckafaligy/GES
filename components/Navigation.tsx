@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
@@ -20,10 +21,26 @@ const tickerItems = [
   "MADE IN CANADA",
 ];
 
-export default function Navigation() {
+export default function Navigation({ forceSolid = false }: { forceSolid?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+  const pathname = usePathname();
+
+  // The bar is transparent (white text) over the dark hero sections on the home
+  // page, but content sub-pages have light backgrounds — force the solid bar
+  // there so the logo and links stay readable from the very top.
+  const solid = forceSolid || scrolled;
+
+  // Logo always points home. If we're already on the home page, intercept the
+  // click and smooth-scroll back up to the first section instead of a no-op nav.
+  const handleLogoClick = (e: React.MouseEvent) => {
+    setOpen(false);
+    if (pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   // Stay transparent (black, light text) across the two dark hero sections —
   // VideoHero + the tall BikeShowcase. Only switch to the solid bar once the
@@ -67,14 +84,14 @@ export default function Navigation() {
       {/* ── Nav row ── */}
       <div
         className={`transition-colors duration-300 ${
-          scrolled
+          solid
             ? "bg-[var(--paper)] text-[#0a0a0a] border-b-2 border-[#0a0a0a]"
             : "bg-transparent text-white"
         }`}
       >
         <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/" onClick={handleLogoClick} className="flex items-center gap-2.5">
             <span className="grid place-items-center w-9 h-9 bg-[var(--acid)] text-[#0a0a0a] border-2 border-current font-black text-lg leading-none">
               G
             </span>
@@ -104,7 +121,7 @@ export default function Navigation() {
             <Link
               href="/login"
               className={`inline-flex items-center mono text-xs font-bold uppercase tracking-[0.08em] border-2 px-4 py-2 transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] active:translate-x-0 active:translate-y-0 ${
-                scrolled
+                solid
                   ? "bg-[#0a0a0a] text-white border-[#0a0a0a] shadow-[4px_4px_0_#0a0a0a] hover:shadow-[6px_6px_0_#0a0a0a] active:shadow-[1px_1px_0_#0a0a0a]"
                   : "bg-white text-[#0a0a0a] border-white shadow-[4px_4px_0_rgba(255,255,255,0.4)] hover:shadow-[6px_6px_0_rgba(255,255,255,0.4)] active:shadow-[1px_1px_0_rgba(255,255,255,0.4)]"
               }`}

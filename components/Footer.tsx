@@ -1,10 +1,32 @@
 import Link from "next/link";
 
-const links = {
-  Services: ["Local Business Sites", "E-Commerce Websites", "3D Product Models"],
-  Company: ["Ownership", "Our Process", "Client Portal"],
-  Legal: ["Privacy Policy", "Terms of Service"],
-};
+type FooterLink = { label: string; href: string };
+
+const linkGroups: { heading: string; items: FooterLink[] }[] = [
+  {
+    heading: "Services",
+    items: [
+      { label: "Local Business Sites", href: "/services/local-business-sites" },
+      { label: "E-Commerce Websites", href: "/services/e-commerce-websites" },
+      { label: "3D Product Models", href: "/services/3d-product-models" },
+    ],
+  },
+  {
+    heading: "Company",
+    items: [
+      { label: "Ownership", href: "/#ownership" },
+      { label: "Our Process", href: "/#process" },
+      { label: "Client Portal", href: "/login" },
+    ],
+  },
+  {
+    heading: "Legal",
+    items: [
+      { label: "Privacy Policy", href: "/privacy-policy" },
+      { label: "Terms of Service", href: "/terms-of-service" },
+    ],
+  },
+];
 
 export default function Footer() {
   return (
@@ -40,15 +62,18 @@ export default function Footer() {
           </div>
         </div>
 
-        {Object.entries(links).map(([heading, items]) => (
-          <div key={heading}>
-            <div className="eyebrow text-[var(--muted)] mb-4">{heading}</div>
+        {linkGroups.map((group) => (
+          <div key={group.heading}>
+            <div className="eyebrow text-[var(--muted)] mb-4">{group.heading}</div>
             <ul className="space-y-2.5">
-              {items.map((item) => (
-                <li key={item}>
-                  <span className="text-sm text-[var(--fg)] ul-link cursor-pointer">
-                    {item}
-                  </span>
+              {group.items.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
+                    className="text-sm text-[var(--fg)] ul-link cursor-pointer"
+                  >
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>
