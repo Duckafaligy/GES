@@ -23,8 +23,11 @@ password-gated client portal that serves per-client preview builds.
 | Styling        | Tailwind CSS v4 (CSS-first, configured in `app/globals.css` — no `tailwind.config`) |
 | Animation      | Framer Motion v12                                  |
 | Icons          | lucide-react                                       |
+| DB & Storage   | Supabase (Postgres `clients` table + private `client-previews` bucket) |
+| Auth tokens    | HMAC-signed, short-lived, held in `sessionStorage` (no cookies) |
 | Media tooling  | `ffmpeg-static` + `ffprobe-static` (bundled binaries, for frame extraction) |
 | Language       | TypeScript 5                                        |
+| Hosting        | Vercel (GitHub-deployed), domains via Cloudflare   |
 
 ## Getting started
 
@@ -48,8 +51,9 @@ app/
   layout.tsx          Root layout + fonts + global metadata
   page.tsx            Landing page — composes the sections below in order
   globals.css         Tailwind v4 theme: design tokens, section themes, brutalist + portal primitives
-  login/              Client portal login route (SHA-256 gate)
-  preview/            Per-client preview build viewer
+  login/              Generic portal entry (code → redirect to /preview/<business>)
+  preview/[business]/ Per-client preview — clean URL, code entered on the page
+  raw/[token]/        Gated static file server (build streamed into the preview iframe)
   api/                Route handlers (server-side endpoints)
   (site)/             Route group: standalone content pages (footer Services + Legal links); its layout renders a solid nav + the footer
     services/{local-business-sites,e-commerce-websites,3d-product-models}/
@@ -68,9 +72,15 @@ components/
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
   LegalDoc.tsx        Data-driven layout for the legal pages (Privacy Policy, Terms of Service)
-lib/clients.ts        Client lookup helpers for the portal
-data/clients.json     Client records (slugs, display names, SHA-256 hashed passcodes — no plaintext)
-scripts/generate-hash.js   Helper to mint a SHA-256 hash for a new client passcode
+lib/clients.ts        Client lookup (Supabase Postgres) — by access code and by slug
+lib/supabase.ts       Server-only Supabase service-role client (lazy)
+lib/session.ts        HMAC-signed, short-lived access tokens (no cookies)
+lib/devAuth.ts        Bearer-token guard for the developer dashboard
+app/api/verify-code/  Access code → short-lived preview token
+app/api/dev/          Dashboard auth + client CRUD + build upload (Bearer-gated)
+app/Developer-Dashboard-Page/   Password-gated internal dashboard (clients + uploads)
+supabase/schema.sql   DB schema + private storage bucket (no demo seed)
+scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
   media/              premium-360.mp4 (desk turntable), standard-360.mp4 (legacy), watch-hero.mp4
@@ -139,11 +149,52 @@ Section 04. Three capability tabs (the old "Standard 3D" tier was removed):
 Tabs without a `video` (2 & 3) render a "What You Get" capability stack on the
 right instead of the viewer.
 
-### Client portal (`app/login`, `app/preview`, `lib/clients.ts`, `data/clients.json`)
-Clients enter a passcode; it's hashed with **SHA-256** and compared against the
-stored hash in `data/clients.json` (no plaintext passcodes are stored or
-committed). On match, the matching preview build is shown. Use
-`node scripts/generate-hash.js` to mint the hash for a new client.
+### Client portal (`app/preview/[business]`, `app/raw/[token]`, `app/login`, `app/Developer-Dashboard-Page`)
+Each client preview lives at a clean URL: **`/preview/<business>`** (the slug is
+auto-derived from the business name). The visitor enters their access code **on that
+page** (or via `/login`); it's **SHA-256** hashed and matched against
+`clients.code_hash` in **Supabase Postgres**. On match the server returns a
+**short-lived (2h) HMAC-signed token** — **no cookie is set**; the token is held in
+`sessionStorage` only and **never appears in the URL**.
+
+The preview page then loads the build inside an `<iframe>` pointed at the internal
+**`/raw/<token>/…`** route, which validates the token and **streams the client's
+built site** from the private Supabase Storage bucket `client-previews/<slug>/`. To
+make any build render *fully* under that dynamic path it injects a `<base>` tag **and**
+rewrites root-absolute URLs (`src`/`href`/`poster`/`srcset`, CSS `url()`/`@import`)
+to the gated prefix, and falls back to `index.html` for extensionless routes so SPA
+client-side routing survives a refresh. New browser session → token gone → the code
+must be re-entered. If a build isn't uploaded/ready, the page shows "Preview is not
+finished — check back in a day."
+
+Manage it all from the **developer dashboard** at `/Developer-Dashboard-Page`
+(gated by `DEV_DASHBOARD_PASSWORD`; the dev token lives in `sessionStorage`, never
+a cookie). Adding a client **auto-generates a 64-character access code** (A–Z a–z
+0–9); only its SHA-256 hash is stored and the plaintext is shown **once** in a copy
+dialog — use **New code** on a client to rotate it. **Upload a built site folder**
+by drag-drop (or picker) — the importer skips `node_modules` / `.git` / `.next`,
+requires an `index.html`, and pushes only web files to Storage, then marks the
+preview ready. Files over ~4 MB are flagged (Vercel's per-request upload limit) —
+compress large media or host it elsewhere.
+
+**Setup:** create a Supabase project, run `supabase/schema.sql` in its SQL editor
+(creates the `clients` table + the private `client-previews` bucket), then copy
+`.env.example` to `.env.local` and fill in all four values (`SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `DEV_DASHBOARD_PASSWORD`). For the
+Vercel deployment set those **same four** under Project → Settings → Environment
+Variables. Add clients in the dashboard (recommended) or via
+`node --env-file=.env.local scripts/add-client.mjs "Business Name"` — the script
+prints the generated access code.
+
+**Upload only the build output**, never the project source: plain HTML as-is,
+Vite/React → `dist/`, Next.js → `output: 'export'` then `out/`. A site that needs
+a running server can't be static-hosted here — store a link to its real deployment
+instead.
+
+> **Next.js export caveat.** A Next `out/` renders, but its client-side router
+> builds absolute `/_next/…` URLs at runtime that can't be rewritten server-side.
+> For full in-preview navigation, build it with a matching `basePath`/`assetPrefix`,
+> or prefer a plain one-pager / Vite build for previews.
 
 ### Footer links & standalone pages (`app/(site)`, `Footer.tsx`)
 Every footer link resolves to real content. **Services** and **Legal** links
@@ -190,6 +241,33 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
 ## Recent changes
+
+### v0.5.0 — generated codes + full-render previews
+- **Access codes are auto-generated.** The manual code field is gone; adding a
+  client mints a **64-char** random code (A–Z a–z 0–9), stores only its hash, and
+  reveals the plaintext **once** in a copy dialog. Each client gets a **New code**
+  (rotate) action.
+- **Uploaded builds render fully.** `/raw/<token>` now rewrites root-absolute URLs
+  (attrs + CSS `url()`/`@import`) to the gated prefix and adds an `index.html` SPA
+  fallback — so plain one-pagers and Vite `dist/` work end-to-end (Next `out/`
+  renders; full client routing needs a build-time `basePath` — see caveat above).
+- **Hardening.** Client delete now removes Storage files **recursively**; the
+  uploader warns about files over Vercel's ~4.5 MB request limit; client-login
+  placeholders updated and the public demo-codes hint removed.
+
+### v0.4.0 — database-backed client previews
+- **Supabase** replaces `data/clients.json`: a `clients` table + a private
+  `client-previews` Storage bucket (`supabase/schema.sql`).
+- **Real previews.** Each client preview lives at `/preview/<business>`; the build
+  is streamed from Storage (with `<base>` injection) via an internal `/raw/<token>`
+  route loaded in an iframe, so the address bar stays clean. The old JSON-driven
+  templated preview was removed.
+- **No cookies.** The code is entered on the preview page → short-lived HMAC token
+  held in `sessionStorage` only (never in the URL); a new session re-enters the
+  code. Not-yet-uploaded builds show a "not finished" page.
+- **Developer dashboard** at `/Developer-Dashboard-Page` (password-gated) to add
+  clients and upload build folders (skips `node_modules`/`.git`/`.next`, requires
+  `index.html`).
 
 ### v0.3.0 — footer pages + navigation
 - **Footer links are live.** The dead `<span>`s are now real `<Link>`s.
