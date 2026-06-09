@@ -373,9 +373,11 @@ function UploadPreview({
     <section className="hard bg-[#0a0a0a] p-6 mb-6">
       <div className="eyebrow text-[var(--muted)] mb-2">Upload Preview Build</div>
       <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
-        Drop the <strong className="text-white">built output</strong> folder (plain HTML, or
-        <span className="text-[var(--acid)]"> dist/</span> /<span className="text-[var(--acid)]"> out/</span>) — not the source project.
-        <span className="text-white"> node_modules</span> / .git / .next are skipped automatically. Must contain an index.html.
+        Build the site locally first (<span className="text-white">npm install</span> → <span className="text-white">npm run build</span>),
+        then drop the <strong className="text-white">built output</strong> folder here — plain HTML, or
+        <span className="text-[var(--acid)]"> dist/</span> /<span className="text-[var(--acid)]"> out/</span>. Don&apos;t upload the
+        source project: <span className="text-white">node_modules</span> / .git / .next are skipped automatically and never need uploading.
+        Must contain an index.html.
       </p>
 
       <label className="block mb-3">
@@ -451,6 +453,38 @@ function ClientCard({
   const [copied, setCopied] = useState(false);
   const url = `/preview/${c.slug}`;
 
+  // Open the live build in a new tab using a dev-minted preview token —
+  // no client access code needed.
+  async function view() {
+    setBusy(true);
+    try {
+      const res = await api(`/api/dev/preview-token?slug=${encodeURIComponent(c.slug)}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { onErr(d.error ?? "Could not open preview."); return; }
+      window.open(`/raw/${d.token}`, "_blank", "noopener,noreferrer");
+    } catch (e) { onErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  // Fetch the zipped build (Bearer-gated) and save it locally.
+  async function download() {
+    setBusy(true);
+    try {
+      const res = await api(`/api/dev/download?slug=${encodeURIComponent(c.slug)}`);
+      if (!res.ok) { const d = await res.json().catch(() => ({})); onErr(d.error ?? "Download failed."); return; }
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${c.slug}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch (e) { onErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
   async function regen() {
     if (!confirm(`Generate a new access code for "${c.name}"? The current code stops working immediately.`)) return;
     setBusy(true);
@@ -521,6 +555,22 @@ function ClientCard({
       </div>
 
       <div className="flex gap-2 flex-wrap text-[11px] mono">
+        <button
+          onClick={view}
+          disabled={!c.preview_ready}
+          title={c.preview_ready ? "Open the build in a new tab" : "Upload a build first"}
+          className="border-2 border-[var(--acid)] text-[var(--acid)] px-2.5 py-1.5 hover:bg-[var(--acid)]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          View
+        </button>
+        <button
+          onClick={download}
+          disabled={!c.preview_ready}
+          title={c.preview_ready ? "Download the uploaded build as a .zip" : "Upload a build first"}
+          className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Download
+        </button>
         <button onClick={regen} className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10">
           New code
         </button>

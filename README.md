@@ -242,6 +242,22 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 
 ## Recent changes
 
+### v0.6.0 — view + download builds, zero-setup dashboard access
+- **View & Download per client.** Each client row in the dashboard now has a
+  **View** (opens the live build in a new tab via a dev-minted preview token — no
+  client code needed) and **Download** (saves the uploaded build as a `.zip`).
+  Both are Bearer-gated and enabled once a build is live. New routes
+  `app/api/dev/preview-token/` and `app/api/dev/download/`; the zip is built by a
+  dependency-free writer in `lib/zip.ts` (STORE method + CRC32), and the recursive
+  storage walk now lives in `lib/storage.ts` (shared by clients + download).
+- **Works out of the box.** The dashboard password defaults to `Brendan!202` and
+  `SESSION_SECRET` has a built-in fallback, so login works with no env setup. ⚠
+  Both defaults live in the repo — **set `DEV_DASHBOARD_PASSWORD` and a real
+  `SESSION_SECRET` in production** (`.env.local` + Vercel) to override them.
+- **Clearer upload help.** The uploader spells out the workflow: build locally
+  (`npm install` → `npm run build`), then upload the `dist/`/`out/` output —
+  `node_modules`/`.git`/`.next` are skipped and never need uploading.
+
 ### v0.5.0 — generated codes + full-render previews
 - **Access codes are auto-generated.** The manual code field is gone; adding a
   client mints a **64-char** random code (A–Z a–z 0–9), stores only its hash, and

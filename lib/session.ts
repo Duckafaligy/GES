@@ -12,10 +12,14 @@ interface Payload {
   exp: number; // epoch ms
 }
 
+// Fallback used only when SESSION_SECRET is unset, so the dashboard + previews
+// work out of the box with no env setup. ⚠ It is public (it lives in the repo),
+// which makes tokens forgeable — ALWAYS set a real SESSION_SECRET in production
+// (.env.local locally, Project → Settings → Environment Variables on Vercel).
+const DEFAULT_SECRET = "ges-dev-insecure-default-secret-set-SESSION_SECRET-in-prod";
+
 function secret(): string {
-  const s = process.env.SESSION_SECRET;
-  if (!s) throw new Error("SESSION_SECRET not configured in .env.local");
-  return s;
+  return process.env.SESSION_SECRET || DEFAULT_SECRET;
 }
 
 const b64u = (buf: Buffer) => buf.toString("base64url");

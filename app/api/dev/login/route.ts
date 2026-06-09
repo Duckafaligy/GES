@@ -4,17 +4,17 @@ import { signToken, DEV_TTL_MS } from "@/lib/session";
 
 export const runtime = "nodejs";
 
+// Default dashboard password, used when DEV_DASHBOARD_PASSWORD is unset so the
+// dashboard works without env setup. Override it by setting that env var
+// (.env.local locally, or Vercel env vars) — recommended for production, since
+// this default lives in the repo.
+const DEFAULT_DEV_PASSWORD = "Brendan!202";
+
 export async function POST(req: NextRequest) {
   try {
     const { password } = await req.json();
-    const expected = process.env.DEV_DASHBOARD_PASSWORD;
+    const expected = process.env.DEV_DASHBOARD_PASSWORD || DEFAULT_DEV_PASSWORD;
 
-    if (!expected) {
-      return NextResponse.json(
-        { error: "Dashboard password is not configured on the server." },
-        { status: 500 }
-      );
-    }
     if (typeof password !== "string" || password.length === 0) {
       return NextResponse.json({ error: "Password required." }, { status: 400 });
     }

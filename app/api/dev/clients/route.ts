@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { isDev } from "@/lib/devAuth";
 import { generateAccessCode, hashCode } from "@/lib/clients";
 import { getSupabaseAdmin, PREVIEW_BUCKET } from "@/lib/supabase";
+import { listAllKeys } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -15,19 +15,6 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
-}
-
-/** Recursively collect every object key under a storage prefix (Supabase list is shallow). */
-async function listAllKeys(admin: SupabaseClient, prefix: string): Promise<string[]> {
-  const out: string[] = [];
-  const { data } = await admin.storage.from(PREVIEW_BUCKET).list(prefix, { limit: 1000 });
-  for (const entry of data ?? []) {
-    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    // Folder placeholders come back with a null id — recurse into them.
-    if ((entry as { id: string | null }).id === null) out.push(...(await listAllKeys(admin, path)));
-    else out.push(path);
-  }
-  return out;
 }
 
 export async function GET(req: NextRequest) {
