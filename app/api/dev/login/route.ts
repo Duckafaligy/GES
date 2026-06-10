@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 // DEV_DASHBOARD_DOB are required — the in-repo defaults can never log into a
 // live deploy. Set your real date of birth (YYYY-MM-DD) in DEV_DASHBOARD_DOB.
 const DEFAULT_DEV_PASSWORD = "Brendan!202";
-const DEFAULT_DEV_DOB = "1995-06-15"; // placeholder for local dev — override via env
+const DEFAULT_DEV_DOB = "2011-02-12"; // dev default — override via DEV_DASHBOARD_DOB in prod
 
 /** Constant-time string compare that avoids leaking length via early return. */
 function safeEqual(a: string, b: string): boolean {
