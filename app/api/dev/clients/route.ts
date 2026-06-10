@@ -7,30 +7,8 @@ import { listAllKeys } from "@/lib/storage";
 export const runtime = "nodejs";
 
 // Select everything that exists so the dashboard works before AND after the
-// v2 pipeline migration (an explicit v2 column list would 400 on an old DB).
+// v2 analytics migration (an explicit v2 column list would 400 on an old DB).
 const COLUMNS = "*";
-
-const STAGES = ["new", "viewed", "deposit", "delivered"] as const;
-const PRICING_MODELS = ["buyout", "rent"] as const;
-
-/** Pull the optional CRM/pipeline fields out of a request body (trimmed, '' → null). */
-function crmFields(body: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const key of ["contact_email", "contact_phone", "notes", "quote"] as const) {
-    if (typeof body[key] === "string") out[key] = (body[key] as string).trim() || null;
-  }
-  if (typeof body.stage === "string" && (STAGES as readonly string[]).includes(body.stage)) {
-    out.stage = body.stage;
-  }
-  if (body.pricing_model === null) out.pricing_model = null;
-  else if (
-    typeof body.pricing_model === "string" &&
-    (PRICING_MODELS as readonly string[]).includes(body.pricing_model)
-  ) {
-    out.pricing_model = body.pricing_model;
-  }
-  return out;
-}
 
 function slugify(s: string): string {
   return s
@@ -74,17 +52,11 @@ export async function POST(req: NextRequest) {
   let n = 1;
   while (used.has(candidate)) { n++; candidate = `${base}-${n}`; }
 
-  const base_row = { slug: candidate, name, industry, code_hash: hashCode(code), status: "active", preview_ready: false };
-  let { data, error } = await admin
+  const { data, error } = await admin
     .from("clients")
-    .insert({ ...base_row, ...crmFields(body) })
+    .insert({ slug: candidate, name, industry, code_hash: hashCode(code), status: "active", preview_ready: false })
     .select(COLUMNS)
     .single();
-
-  // Pre-migration DB (v2 columns absent): retry with the base columns only.
-  if (error && /column .* does not exist|could not find/i.test(error.message)) {
-    ({ data, error } = await admin.from("clients").insert(base_row).select(COLUMNS).single());
-  }
 
   if (error) {
     const msg = /duplicate|unique/i.test(error.message)
@@ -101,7 +73,7 @@ export async function PATCH(req: NextRequest) {
   const slug = String(body?.slug ?? "").trim();
   if (!slug) return NextResponse.json({ error: "slug is required." }, { status: 400 });
 
-  const patch: Record<string, unknown> = { ...crmFields(body) };
+  const patch: Record<string, unknown> = {};
   if (typeof body.status === "string" && ["active", "disabled"].includes(body.status)) patch.status = body.status;
   if (typeof body.preview_ready === "boolean") patch.preview_ready = body.preview_ready;
 
@@ -120,12 +92,7 @@ export async function PATCH(req: NextRequest) {
     .eq("slug", slug)
     .select(COLUMNS)
     .single();
-  if (error) {
-    const msg = /column .* does not exist|could not find/i.test(error.message)
-      ? "Your database is missing the v2 pipeline columns — run supabase/migrations/2026-06-10-v2-pipeline.sql in the Supabase SQL editor."
-      : error.message;
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ client: data, code: newCode });
 }
 

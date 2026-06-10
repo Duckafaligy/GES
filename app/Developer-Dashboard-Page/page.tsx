@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, AlertTriangle, ChevronDown, ChevronUp, Eye } from "lucide-react";
 
-type Stage = "new" | "viewed" | "deposit" | "delivered";
-
 interface DevClient {
   id: string;
   slug: string;
@@ -14,24 +12,27 @@ interface DevClient {
   preview_ready: boolean;
   expires_at: string | null;
   created_at: string;
-  // v2 pipeline/CRM — optional so the dashboard still renders pre-migration.
-  stage?: Stage;
-  contact_email?: string | null;
-  contact_phone?: string | null;
-  notes?: string | null;
-  pricing_model?: "buyout" | "rent" | null;
-  quote?: string | null;
+  // v2 viewer analytics — optional so the dashboard still renders pre-migration.
   view_count?: number;
+  first_viewed_at?: string | null;
   last_viewed_at?: string | null;
 }
 
-const STAGE_LABEL: Record<Stage, string> = {
-  new: "New",
-  viewed: "Viewed",
-  deposit: "Deposit",
-  delivered: "Delivered",
-};
-const STAGE_ORDER: Stage[] = ["new", "viewed", "deposit", "delivered"];
+interface ViewAnalytics {
+  view_count: number;
+  first_viewed_at: string | null;
+  last_viewed_at: string | null;
+  views: string[]; // newest-first ISO timestamps
+}
+
+/** Absolute, human date+time for the analytics timeline. */
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
 
 interface PickedFile {
   file: File;
@@ -252,7 +253,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
           <Stat n={clients.length} label="Clients" />
           <Stat n={live} label="Live previews" />
           <Stat n={clients.filter((c) => (c.view_count ?? 0) > 0).length} label="Viewed by client" />
-          <Stat n={clients.filter((c) => c.stage === "deposit" || c.stage === "delivered").length} label="Deposit+" />
+          <Stat n={clients.reduce((sum, c) => sum + (c.view_count ?? 0), 0)} label="Total views" />
         </div>
 
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
@@ -626,7 +627,6 @@ function ClientCard({
     });
   }
 
-  const stage = c.stage ?? "new";
   const views = c.view_count ?? 0;
 
   return (
@@ -636,9 +636,9 @@ function ClientCard({
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="font-extrabold uppercase tracking-tight">{c.name}</span>
           <Pill on={c.preview_ready} onText="Live" offText="Not finished" />
-          <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-[var(--amber)] text-[var(--amber)] px-2 py-0.5">
-            {STAGE_LABEL[stage]}
-          </span>
+          {views > 0
+            ? <span className="mono text-[10px] uppercase tracking-[0.14em] bg-[var(--acid)] text-[#0a0a0a] px-2 py-0.5 font-bold">Viewed</span>
+            : <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-[var(--line)] text-[var(--muted)] px-2 py-0.5">Not viewed</span>}
           {c.status === "disabled" && <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-red-500/60 text-red-400 px-2 py-0.5">Disabled</span>}
         </div>
         <div className="mono text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-2 flex-wrap">
@@ -696,99 +696,91 @@ function ClientCard({
           onClick={() => setOpen((v) => !v)}
           className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10 inline-flex items-center justify-center gap-1"
         >
-          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Details
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Analytics
         </button>
       </div>
       </div>
 
-      {open && <ClientDetails c={c} busy={busy} onSave={(fields) => patch(fields)} />}
+      {open && <ClientAnalytics slug={c.slug} api={api} />}
     </div>
   );
 }
 
-/* ── per-client pipeline / CRM editor ── */
-function ClientDetails({
-  c, busy, onSave,
+/* ── per-client viewer analytics (read-only) ── */
+function ClientAnalytics({
+  slug, api,
 }: {
-  c: DevClient;
-  busy: boolean;
-  onSave: (fields: Record<string, unknown>) => void;
+  slug: string;
+  api: (p: string, o?: RequestInit) => Promise<Response>;
 }) {
-  const [email, setEmail] = useState(c.contact_email ?? "");
-  const [phone, setPhone] = useState(c.contact_phone ?? "");
-  const [quote, setQuote] = useState(c.quote ?? "");
-  const [model, setModel] = useState<string>(c.pricing_model ?? "");
-  const [stage, setStage] = useState<Stage>(c.stage ?? "new");
-  const [notes, setNotes] = useState(c.notes ?? "");
+  const [data, setData] = useState<ViewAnalytics | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  function save() {
-    onSave({
-      contact_email: email,
-      contact_phone: phone,
-      quote,
-      pricing_model: model || null,
-      stage,
-      notes,
-    });
-  }
+  const load = useCallback(async () => {
+    setLoading(true); setErr(null);
+    try {
+      const res = await api(`/api/dev/views?slug=${encodeURIComponent(slug)}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || `Couldn't load analytics (HTTP ${res.status}).`);
+      setData(d);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setLoading(false); }
+  }, [api, slug]);
+
+  useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="border-t-2 border-[var(--line)]/40 pt-4 grid sm:grid-cols-2 gap-3">
-      {/* Pipeline stage stepper */}
-      <div className="sm:col-span-2">
-        <span className="eyebrow text-[var(--muted)] mb-2 block">Pipeline Stage</span>
-        <div className="flex flex-wrap gap-2">
-          {STAGE_ORDER.map((s, i) => (
-            <button
-              key={s}
-              onClick={() => setStage(s)}
-              className={`mono text-[11px] px-3 py-1.5 border-2 transition-colors ${
-                stage === s
-                  ? "bg-[var(--acid)] text-[#0a0a0a] border-[var(--acid)] font-bold"
-                  : STAGE_ORDER.indexOf(stage) > i
-                    ? "border-[var(--acid)]/50 text-[var(--acid)]/70"
-                    : "border-[var(--line)]/50 text-[var(--muted)] hover:border-[var(--line)]"
-              }`}
-            >
-              {i + 1}. {STAGE_LABEL[s]}
-            </button>
-          ))}
+    <div className="border-t-2 border-[var(--line)]/40 pt-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="eyebrow text-[var(--muted)]">Viewer Analytics</span>
+        <button onClick={load} className="eyebrow text-[var(--muted)] hover:text-white">Refresh</button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          <div className="skeleton h-12 w-full" />
+          <div className="skeleton h-3 w-40" />
         </div>
-      </div>
+      ) : err ? (
+        <div className="mono text-[11px] text-red-400">{err}</div>
+      ) : data ? (
+        <>
+          <div className="grid grid-cols-3 border-t-2 border-l-2 border-[var(--line)]/60 mb-4">
+            <AnalyticStat n={String(data.view_count)} label="Total opens" />
+            <AnalyticStat n={data.first_viewed_at ? fmtDateTime(data.first_viewed_at) : "—"} label="First open" small />
+            <AnalyticStat n={data.last_viewed_at ? fmtDateTime(data.last_viewed_at) : "—"} label="Last open" small />
+          </div>
+          {data.views.length === 0 ? (
+            <div className="mono text-[11px] text-[var(--muted)]">
+              No opens yet — the client hasn&apos;t entered their access code.
+              {data.view_count > 0 && " (Run the v2 analytics migration to log the per-open timeline.)"}
+            </div>
+          ) : (
+            <div>
+              <div className="eyebrow text-[var(--muted)] mb-2">Open timeline ({data.views.length})</div>
+              <div className="max-h-40 overflow-y-auto border-2 border-[var(--line)]/40 divide-y divide-[var(--line)]/20">
+                {data.views.map((t, i) => (
+                  <div key={`${t}-${i}`} className="flex items-center gap-2 px-3 py-1.5 mono text-[11px]">
+                    <Eye size={11} className="text-[var(--acid)] flex-shrink-0" />
+                    <span className="text-white">{fmtDateTime(t)}</span>
+                    <span className="text-[var(--muted)] ml-auto">{timeAgo(t)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}
 
-      <Field label="Contact email" value={email} onChange={setEmail} placeholder="owner@business.ca" mono />
-      <Field label="Contact phone" value={phone} onChange={setPhone} placeholder="+1 (___) ___-____" mono />
-      <Field label="Quote" value={quote} onChange={setQuote} placeholder='e.g. "$4,500 buy-out" or "$180/mo"' mono />
-
-      <label className="block">
-        <span className="eyebrow text-[var(--muted)] mb-2 block">Pricing model</span>
-        <select
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          className="w-full bg-[#0a0a0a] border-2 border-[var(--line)] px-3 py-2.5 mono text-sm focus:outline-none focus:border-[var(--acid)]"
-        >
-          <option value="">— not set —</option>
-          <option value="buyout">Flat buy-out (full ownership transfer)</option>
-          <option value="rent">Renting (recurring, GES retains ownership)</option>
-        </select>
-      </label>
-
-      <label className="block sm:col-span-2">
-        <span className="eyebrow text-[var(--muted)] mb-2 block">Internal notes (never shown to the client)</span>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          placeholder="Call summary, objections, follow-up date…"
-          className="w-full bg-transparent border-2 border-[var(--line)] px-3 py-2.5 mono text-xs leading-relaxed focus:outline-none focus:border-[var(--acid)] resize-y"
-        />
-      </label>
-
-      <div className="sm:col-span-2">
-        <button onClick={save} disabled={busy} className="btn-brut text-[11px] py-2.5 px-4 disabled:opacity-50">
-          {busy ? "Saving…" : "Save details"}
-        </button>
-      </div>
+function AnalyticStat({ n, label, small }: { n: string; label: string; small?: boolean }) {
+  return (
+    <div className="border-b-2 border-r-2 border-[var(--line)]/60 p-3">
+      <div className={`${small ? "text-sm font-bold" : "display text-2xl"} leading-none text-[var(--acid)]`}>{n}</div>
+      <div className="eyebrow text-[var(--muted)] mt-1.5">{label}</div>
     </div>
   );
 }

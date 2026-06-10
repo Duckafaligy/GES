@@ -21,9 +21,6 @@ export function generateAccessCode(length = 64): string {
   return out.join("");
 }
 
-export type Stage = "new" | "viewed" | "deposit" | "delivered";
-export type PricingModel = "buyout" | "rent";
-
 export interface Client {
   id: string;
   slug: string;
@@ -33,14 +30,9 @@ export interface Client {
   preview_ready: boolean;
   expires_at: string | null;
   created_at: string;
-  // v2 pipeline/CRM fields — optional so the app still runs on a pre-migration DB.
-  stage?: Stage;
-  contact_email?: string | null;
-  contact_phone?: string | null;
-  notes?: string | null;
-  pricing_model?: PricingModel | null;
-  quote?: string | null;
+  // v2 viewer analytics — optional so the app still runs on a pre-migration DB.
   view_count?: number;
+  first_viewed_at?: string | null;
   last_viewed_at?: string | null;
 }
 
@@ -82,20 +74,39 @@ export async function findClientBySlug(slug: string): Promise<Client | null> {
 }
 
 /**
- * Record a successful code entry: bump view_count + last_viewed_at and
- * auto-advance a 'new' client to 'viewed' (the sales signal that the prospect
- * actually opened their preview). Best-effort — a pre-migration DB without the
- * v2 columns just no-ops.
+ * Record a successful code entry (the prospect opened their preview): append a
+ * row to the client_views event log and bump the aggregate counters on the
+ * client. Best-effort — never blocks the client's login, and a pre-migration DB
+ * without the v2 tables/columns simply no-ops.
  */
 export async function recordPreviewView(client: Client): Promise<void> {
+  const admin = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  // Event log (timeline) — separate try so a missing table doesn't skip the counters.
   try {
-    const patch: Record<string, unknown> = {
-      view_count: (client.view_count ?? 0) + 1,
-      last_viewed_at: new Date().toISOString(),
-    };
-    if (!client.stage || client.stage === "new") patch.stage = "viewed";
-    await getSupabaseAdmin().from("clients").update(patch).eq("id", client.id);
-  } catch {
-    /* tracking must never block the client's login */
-  }
+    await admin.from("client_views").insert({ client_id: client.id, viewed_at: now });
+  } catch { /* table may not exist pre-migration */ }
+  // Aggregate counters for fast list display.
+  try {
+    await admin
+      .from("clients")
+      .update({
+        view_count: (client.view_count ?? 0) + 1,
+        last_viewed_at: now,
+        first_viewed_at: client.first_viewed_at ?? now,
+      })
+      .eq("id", client.id);
+  } catch { /* columns may not exist pre-migration */ }
+}
+
+/** Recent view timestamps for a client (newest first) — powers the analytics panel. */
+export async function listClientViews(clientId: string, limit = 50): Promise<string[]> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("client_views")
+    .select("viewed_at")
+    .eq("client_id", clientId)
+    .order("viewed_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as { viewed_at: string }[]).map((r) => r.viewed_at);
 }

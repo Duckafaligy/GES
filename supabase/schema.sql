@@ -21,15 +21,10 @@ create table if not exists public.clients (
   preview_ready boolean not null default false,-- false → shows "Preview is not finished"
   expires_at    timestamptz,                   -- optional auto-expiry
   created_at    timestamptz not null default now(),
-  -- ── v2: sales pipeline + CRM fields (see migrations/2026-06-10-v2-pipeline.sql) ──
-  stage         text not null default 'new' check (stage in ('new','viewed','deposit','delivered')),
-  contact_email text,
-  contact_phone text,
-  notes         text,                          -- internal notes (never shown to the client)
-  pricing_model text check (pricing_model in ('buyout','rent')),
-  quote         text,                          -- e.g. "$4,500 buy-out" / "$180/mo rent"
-  view_count    integer not null default 0,    -- successful code entries
-  last_viewed_at timestamptz                   -- last successful code entry (sales signal)
+  -- ── v2: viewer analytics (see migrations/2026-06-10-v2-analytics.sql) ──
+  view_count      integer not null default 0,  -- total successful code entries
+  first_viewed_at timestamptz,                 -- first time the prospect opened the preview
+  last_viewed_at  timestamptz                  -- most recent open (the follow-up signal)
 );
 
 create unique index if not exists clients_code_hash_key on public.clients (code_hash);
@@ -38,6 +33,16 @@ create unique index if not exists clients_code_hash_key on public.clients (code_
 -- No policies = no anon/public access. service_role bypasses RLS.
 alter table public.clients enable row level security;
 
--- 3) No demo seed. Create real clients from the developer dashboard
+-- 3) Per-view event log — powers the dashboard's viewer analytics (timeline,
+--    counts, first/last). One row per successful access-code entry.
+create table if not exists public.client_views (
+  id        uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  viewed_at timestamptz not null default now()
+);
+create index if not exists client_views_client_idx on public.client_views (client_id, viewed_at desc);
+alter table public.client_views enable row level security;
+
+-- 4) No demo seed. Create real clients from the developer dashboard
 --    (/Developer-Dashboard-Page) — it generates a 64-char access code and stores
 --    only its SHA-256 hash. (Or use scripts/add-client.mjs.)
