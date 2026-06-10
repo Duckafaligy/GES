@@ -16,12 +16,13 @@ create table if not exists public.clients (
   slug          text unique not null,          -- used in the preview path, e.g. bloom-florist
   name          text not null,
   industry      text,
-  code_hash     text not null,                 -- SHA-256 of the access code (no plaintext stored)
+  code_hash     text not null,                 -- SHA-256 of the access code (used for lookup)
+  access_code   text,                          -- plaintext code, kept so it's recoverable later
   status        text not null default 'active' check (status in ('active','disabled')),
   preview_ready boolean not null default false,-- false → shows "Preview is not finished"
   expires_at    timestamptz,                   -- optional auto-expiry
   created_at    timestamptz not null default now(),
-  -- ── v2: viewer analytics (see migrations/2026-06-10-v2-analytics.sql) ──
+  -- ── v2: viewer analytics (see migrations/2026-06-11-v2-analytics-and-codes.sql) ──
   view_count      integer not null default 0,  -- total successful code entries
   first_viewed_at timestamptz,                 -- first time the prospect opened the preview
   last_viewed_at  timestamptz                  -- most recent open (the follow-up signal)

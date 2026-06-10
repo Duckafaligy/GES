@@ -30,7 +30,8 @@ export interface Client {
   preview_ready: boolean;
   expires_at: string | null;
   created_at: string;
-  // v2 viewer analytics — optional so the app still runs on a pre-migration DB.
+  // v2 fields — optional so the app still runs on a pre-migration DB.
+  access_code?: string | null;   // plaintext, kept for recovery (see access_code column)
   view_count?: number;
   first_viewed_at?: string | null;
   last_viewed_at?: string | null;

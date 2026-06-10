@@ -52,11 +52,17 @@ export async function POST(req: NextRequest) {
   let n = 1;
   while (used.has(candidate)) { n++; candidate = `${base}-${n}`; }
 
-  const { data, error } = await admin
+  const baseRow = { slug: candidate, name, industry, code_hash: hashCode(code), status: "active", preview_ready: false };
+  // Keep the plaintext code too, so it's recoverable. Falls back gracefully if
+  // the access_code column isn't there yet (pre-migration DB).
+  let { data, error } = await admin
     .from("clients")
-    .insert({ slug: candidate, name, industry, code_hash: hashCode(code), status: "active", preview_ready: false })
+    .insert({ ...baseRow, access_code: code })
     .select(COLUMNS)
     .single();
+  if (error && /access_code/i.test(error.message)) {
+    ({ data, error } = await admin.from("clients").insert(baseRow).select(COLUMNS).single());
+  }
 
   if (error) {
     const msg = /duplicate|unique/i.test(error.message)
@@ -82,16 +88,18 @@ export async function PATCH(req: NextRequest) {
   if (body.regenerate === true) {
     newCode = generateAccessCode(64);
     patch.code_hash = hashCode(newCode);
+    patch.access_code = newCode; // keep the recoverable plaintext in sync
   }
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
 
-  const { data, error } = await getSupabaseAdmin()
-    .from("clients")
-    .update(patch)
-    .eq("slug", slug)
-    .select(COLUMNS)
-    .single();
+  const admin = getSupabaseAdmin();
+  let { data, error } = await admin.from("clients").update(patch).eq("slug", slug).select(COLUMNS).single();
+  // Pre-migration DB without access_code: retry without it (hash still rotates).
+  if (error && /access_code/i.test(error.message)) {
+    delete patch.access_code;
+    ({ data, error } = await admin.from("clients").update(patch).eq("slug", slug).select(COLUMNS).single());
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ client: data, code: newCode });
 }

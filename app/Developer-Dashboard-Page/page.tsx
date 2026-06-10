@@ -12,7 +12,8 @@ interface DevClient {
   preview_ready: boolean;
   expires_at: string | null;
   created_at: string;
-  // v2 viewer analytics — optional so the dashboard still renders pre-migration.
+  // v2 — optional so the dashboard still renders pre-migration.
+  access_code?: string | null;
   view_count?: number;
   first_viewed_at?: string | null;
   last_viewed_at?: string | null;
@@ -132,6 +133,7 @@ export default function DeveloperDashboard() {
 /* ── password gate ── */
 function PasswordGate({ onAuthed }: { onAuthed: (t: string) => void }) {
   const [password, setPassword] = useState("");
+  const [dob, setDob] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -143,10 +145,10 @@ function PasswordGate({ onAuthed }: { onAuthed: (t: string) => void }) {
       const res = await fetch("/api/dev/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, dob }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Incorrect password."); setLoading(false); return; }
+      if (!res.ok) { setError(data.error ?? "Incorrect password or date of birth."); setLoading(false); return; }
       onAuthed(data.token);
     } catch { setError("Network error."); setLoading(false); }
   }
@@ -159,6 +161,7 @@ function PasswordGate({ onAuthed }: { onAuthed: (t: string) => void }) {
           <div className="eyebrow text-[var(--muted)] leading-tight">GES<br />Internal</div>
         </div>
         <h1 className="display text-3xl mb-6">Developer<br />Dashboard</h1>
+
         <label className="eyebrow text-[var(--muted)] mb-2 block">Developer Password</label>
         <input
           type="password"
@@ -168,8 +171,17 @@ function PasswordGate({ onAuthed }: { onAuthed: (t: string) => void }) {
           className="w-full bg-transparent border-2 border-[var(--line)] px-3 py-3 mono text-sm mb-4 focus:outline-none focus:border-[var(--acid)]"
           placeholder="••••••••"
         />
+
+        <label className="eyebrow text-[var(--muted)] mb-2 block">Date of Birth</label>
+        <input
+          type="date"
+          value={dob}
+          onChange={(e) => { setDob(e.target.value); setError(""); }}
+          className="w-full bg-transparent border-2 border-[var(--line)] px-3 py-3 mono text-sm mb-4 focus:outline-none focus:border-[var(--acid)] [color-scheme:dark]"
+        />
+
         {error && <div className="mono text-xs text-red-400 mb-4">{error}</div>}
-        <button type="submit" disabled={loading || !password} className="btn-brut w-full justify-center disabled:opacity-50">
+        <button type="submit" disabled={loading || !password || !dob} className="btn-brut w-full justify-center disabled:opacity-50">
           {loading ? "Checking…" : "Enter"}
         </button>
       </form>
@@ -701,7 +713,54 @@ function ClientCard({
       </div>
       </div>
 
-      {open && <ClientAnalytics slug={c.slug} api={api} />}
+      {open && (
+        <>
+          <AccessCodeRow code={c.access_code} />
+          <ClientAnalytics slug={c.slug} api={api} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── recoverable access code (stored plaintext, revealed on demand) ── */
+function AccessCodeRow({ code }: { code?: string | null }) {
+  const [show, setShow] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  if (!code) {
+    return (
+      <div className="border-t-2 border-[var(--line)]/40 pt-4">
+        <span className="eyebrow text-[var(--muted)] mb-2 block">Access Code</span>
+        <p className="mono text-[11px] text-[var(--muted)] leading-relaxed">
+          Not stored for this client. Codes are saved from now on — use{" "}
+          <span className="text-white">New code</span> to mint a fresh one that&apos;s recoverable here.
+        </p>
+      </div>
+    );
+  }
+
+  function copy() {
+    navigator.clipboard?.writeText(code!).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  return (
+    <div className="border-t-2 border-[var(--line)]/40 pt-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="eyebrow text-[var(--muted)]">Access Code</span>
+        <div className="flex gap-3 mono text-[11px]">
+          <button onClick={() => setShow((v) => !v)} className="text-[var(--muted)] hover:text-white">
+            {show ? "Hide" : "Show"}
+          </button>
+          <button onClick={copy} className="text-[var(--acid)]">{copied ? "Copied ✓" : "Copy"}</button>
+        </div>
+      </div>
+      <div className="border-2 border-[var(--line)] bg-black p-2.5 mono text-[11px] break-all select-all text-white">
+        {show ? code : "•".repeat(Math.min(code.length, 48))}
+      </div>
     </div>
   );
 }

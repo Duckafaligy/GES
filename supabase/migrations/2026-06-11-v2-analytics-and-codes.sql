@@ -1,12 +1,14 @@
 -- ============================================================
--- GES schema v2 — viewer analytics
+-- GES schema v2 — viewer analytics + recoverable access codes
 -- For databases that already ran the original schema.sql.
 -- Run in the Supabase SQL editor (Project → SQL → New query → Run).
 -- Safe to run more than once.
 -- ============================================================
 
--- Aggregate counters on the client row (fast to read in the dashboard list).
+-- Aggregate view counters on the client row (fast to read in the dashboard list)
+-- + the plaintext access code so it's recoverable if you forget it later.
 alter table public.clients
+  add column if not exists access_code     text,
   add column if not exists view_count      integer not null default 0,
   add column if not exists first_viewed_at timestamptz,
   add column if not exists last_viewed_at  timestamptz;
