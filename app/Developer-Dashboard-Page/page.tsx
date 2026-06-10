@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Search, AlertTriangle } from "lucide-react";
+import { Search, AlertTriangle, ChevronDown, ChevronUp, Eye } from "lucide-react";
+
+type Stage = "new" | "viewed" | "deposit" | "delivered";
 
 interface DevClient {
   id: string;
@@ -12,7 +14,24 @@ interface DevClient {
   preview_ready: boolean;
   expires_at: string | null;
   created_at: string;
+  // v2 pipeline/CRM — optional so the dashboard still renders pre-migration.
+  stage?: Stage;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+  pricing_model?: "buyout" | "rent" | null;
+  quote?: string | null;
+  view_count?: number;
+  last_viewed_at?: string | null;
 }
+
+const STAGE_LABEL: Record<Stage, string> = {
+  new: "New",
+  viewed: "Viewed",
+  deposit: "Deposit",
+  delivered: "Delivered",
+};
+const STAGE_ORDER: Stage[] = ["new", "viewed", "deposit", "delivered"];
 
 interface PickedFile {
   file: File;
@@ -229,10 +248,11 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
         )}
 
         {/* stat strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 border-t-2 border-l-2 border-[var(--line)] mb-9">
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-t-2 border-l-2 border-[var(--line)] mb-9">
           <Stat n={clients.length} label="Clients" />
           <Stat n={live} label="Live previews" />
-          <Stat n={clients.length - live} label="Awaiting build" />
+          <Stat n={clients.filter((c) => (c.view_count ?? 0) > 0).length} label="Viewed by client" />
+          <Stat n={clients.filter((c) => c.stage === "deposit" || c.stage === "delivered").length} label="Deposit+" />
         </div>
 
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
@@ -518,6 +538,7 @@ function ClientCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
   const url = `/preview/${c.slug}`;
 
   // Open the live build in a new tab using a dev-minted preview token —
@@ -605,12 +626,19 @@ function ClientCard({
     });
   }
 
+  const stage = c.stage ?? "new";
+  const views = c.view_count ?? 0;
+
   return (
-    <div className={`hard bg-[#0a0a0a] p-5 flex flex-col md:flex-row md:items-center gap-4 ${busy ? "opacity-50" : ""}`}>
+    <div className={`hard bg-[#0a0a0a] p-5 flex flex-col gap-4 ${busy ? "opacity-50" : ""}`}>
+      <div className="flex flex-col md:flex-row md:items-center gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="font-extrabold uppercase tracking-tight">{c.name}</span>
           <Pill on={c.preview_ready} onText="Live" offText="Not finished" />
+          <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-[var(--amber)] text-[var(--amber)] px-2 py-0.5">
+            {STAGE_LABEL[stage]}
+          </span>
           {c.status === "disabled" && <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-red-500/60 text-red-400 px-2 py-0.5">Disabled</span>}
         </div>
         <div className="mono text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-2 flex-wrap">
@@ -622,6 +650,14 @@ function ClientCard({
             <>
               <span className="opacity-40">·</span>
               <span className="opacity-70">added {timeAgo(c.created_at)}</span>
+            </>
+          )}
+          {views > 0 && c.last_viewed_at && (
+            <>
+              <span className="opacity-40">·</span>
+              <span className="inline-flex items-center gap-1 text-[var(--acid)]">
+                <Eye size={11} /> viewed {timeAgo(c.last_viewed_at)} · {views}×
+              </span>
             </>
           )}
         </div>
@@ -655,6 +691,102 @@ function ClientCard({
         </button>
         <button onClick={remove} className="border-2 border-red-500/50 text-red-400 px-2.5 py-1.5 hover:bg-red-500/10">
           Delete
+        </button>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10 inline-flex items-center justify-center gap-1"
+        >
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Details
+        </button>
+      </div>
+      </div>
+
+      {open && <ClientDetails c={c} busy={busy} onSave={(fields) => patch(fields)} />}
+    </div>
+  );
+}
+
+/* ── per-client pipeline / CRM editor ── */
+function ClientDetails({
+  c, busy, onSave,
+}: {
+  c: DevClient;
+  busy: boolean;
+  onSave: (fields: Record<string, unknown>) => void;
+}) {
+  const [email, setEmail] = useState(c.contact_email ?? "");
+  const [phone, setPhone] = useState(c.contact_phone ?? "");
+  const [quote, setQuote] = useState(c.quote ?? "");
+  const [model, setModel] = useState<string>(c.pricing_model ?? "");
+  const [stage, setStage] = useState<Stage>(c.stage ?? "new");
+  const [notes, setNotes] = useState(c.notes ?? "");
+
+  function save() {
+    onSave({
+      contact_email: email,
+      contact_phone: phone,
+      quote,
+      pricing_model: model || null,
+      stage,
+      notes,
+    });
+  }
+
+  return (
+    <div className="border-t-2 border-[var(--line)]/40 pt-4 grid sm:grid-cols-2 gap-3">
+      {/* Pipeline stage stepper */}
+      <div className="sm:col-span-2">
+        <span className="eyebrow text-[var(--muted)] mb-2 block">Pipeline Stage</span>
+        <div className="flex flex-wrap gap-2">
+          {STAGE_ORDER.map((s, i) => (
+            <button
+              key={s}
+              onClick={() => setStage(s)}
+              className={`mono text-[11px] px-3 py-1.5 border-2 transition-colors ${
+                stage === s
+                  ? "bg-[var(--acid)] text-[#0a0a0a] border-[var(--acid)] font-bold"
+                  : STAGE_ORDER.indexOf(stage) > i
+                    ? "border-[var(--acid)]/50 text-[var(--acid)]/70"
+                    : "border-[var(--line)]/50 text-[var(--muted)] hover:border-[var(--line)]"
+              }`}
+            >
+              {i + 1}. {STAGE_LABEL[s]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Field label="Contact email" value={email} onChange={setEmail} placeholder="owner@business.ca" mono />
+      <Field label="Contact phone" value={phone} onChange={setPhone} placeholder="+1 (___) ___-____" mono />
+      <Field label="Quote" value={quote} onChange={setQuote} placeholder='e.g. "$4,500 buy-out" or "$180/mo"' mono />
+
+      <label className="block">
+        <span className="eyebrow text-[var(--muted)] mb-2 block">Pricing model</span>
+        <select
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          className="w-full bg-[#0a0a0a] border-2 border-[var(--line)] px-3 py-2.5 mono text-sm focus:outline-none focus:border-[var(--acid)]"
+        >
+          <option value="">— not set —</option>
+          <option value="buyout">Flat buy-out (full ownership transfer)</option>
+          <option value="rent">Renting (recurring, GES retains ownership)</option>
+        </select>
+      </label>
+
+      <label className="block sm:col-span-2">
+        <span className="eyebrow text-[var(--muted)] mb-2 block">Internal notes (never shown to the client)</span>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Call summary, objections, follow-up date…"
+          className="w-full bg-transparent border-2 border-[var(--line)] px-3 py-2.5 mono text-xs leading-relaxed focus:outline-none focus:border-[var(--acid)] resize-y"
+        />
+      </label>
+
+      <div className="sm:col-span-2">
+        <button onClick={save} disabled={busy} className="btn-brut text-[11px] py-2.5 px-4 disabled:opacity-50">
+          {busy ? "Saving…" : "Save details"}
         </button>
       </div>
     </div>

@@ -31,6 +31,9 @@ export default function BusinessPreview() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [frameLoaded, setFrameLoaded] = useState(false);
+  // Personalization: business name/industry for this slug (null = unknown/404).
+  const [meta, setMeta] = useState<{ name: string; industry: string | null } | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     const key = `ges_pt_${business}`;
@@ -38,6 +41,19 @@ export default function BusinessPreview() {
     if (t && tokenExp(t) > Date.now()) setToken(t);
     else if (t) sessionStorage.removeItem(key);
     setChecked(true);
+  }, [business]);
+
+  // Greet the prospect by name — falls back to generic copy if unavailable.
+  useEffect(() => {
+    if (!business) return;
+    let cancelled = false;
+    fetch(`/api/preview-meta?business=${encodeURIComponent(business)}`)
+      .then((r) => (r.status === 404 ? Promise.reject("nf") : r.json()))
+      .then((d) => {
+        if (!cancelled && d?.found) setMeta({ name: d.name, industry: d.industry });
+      })
+      .catch((e) => { if (!cancelled && e === "nf") setNotFound(true); });
+    return () => { cancelled = true; };
   }, [business]);
 
   async function submit(e: React.FormEvent) {
@@ -82,6 +98,7 @@ export default function BusinessPreview() {
           <span className="flex items-center gap-2.5 text-[#ccff00]/90 font-semibold tracking-[0.18em] uppercase text-[11px]">
             <span className="w-5 h-5 rounded bg-[var(--acid)] text-[#0a0a0a] grid place-items-center font-black text-[11px]">G</span>
             <Lock size={11} /> GES Client Preview
+            {meta?.name && <span className="hidden sm:inline text-gray-400 normal-case tracking-normal font-normal">— {meta.name}</span>}
           </span>
           <button onClick={exit} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs">
             <X size={13} /> Exit preview
@@ -106,6 +123,23 @@ export default function BusinessPreview() {
             className="absolute inset-0 w-full h-full border-0"
             title="GES Client Preview"
           />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Unknown slug: clear dead-end instead of a code box that can never work ──
+  if (notFound && !token) {
+    return (
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center px-6 relative overflow-hidden">
+        <div className="absolute inset-0 grid-pattern" />
+        <div className="relative z-10 glass rounded-3xl p-10 max-w-md text-center">
+          <h1 className="text-2xl font-black mb-3 text-white">No preview at this address</h1>
+          <p className="text-gray-400 text-sm leading-relaxed mb-6">
+            We couldn&apos;t find a client preview for &ldquo;{business}&rdquo;. Double-check the link
+            from your call, or get in touch and we&apos;ll sort it out.
+          </p>
+          <Link href="/#contact" className="btn-primary inline-flex">Contact GES <ArrowRight size={16} /></Link>
         </div>
       </div>
     );
@@ -145,11 +179,19 @@ export default function BusinessPreview() {
           </motion.div>
 
           <h1 className="text-3xl font-black text-center mb-3 bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
-            Your Preview
+            {meta?.name ?? "Your Preview"}
           </h1>
+          {meta?.industry && (
+            <div className="flex justify-center mb-3">
+              <span className="inline-flex items-center text-[10px] uppercase tracking-[0.18em] font-semibold text-[#ccff00]/80 bg-[#ccff00]/10 border border-[#ccff00]/20 rounded-full px-3 py-1">
+                {meta.industry}
+              </span>
+            </div>
+          )}
           <p className="text-gray-400 text-sm text-center mb-8 leading-relaxed">
-            Enter the access code from your consultation call to unlock the website
-            preview we built for your business.
+            {meta?.name
+              ? `Enter the access code from your consultation call to unlock the website preview we built for ${meta.name}.`
+              : "Enter the access code from your consultation call to unlock the website preview we built for your business."}
           </p>
 
           <form onSubmit={submit} className="space-y-4">

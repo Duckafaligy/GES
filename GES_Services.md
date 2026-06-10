@@ -55,6 +55,11 @@ A newer line of business: the systems that run behind the storefront. Custom AI 
 5. **Deposit** — 30% non-refundable deposit to lock in the project
 6. **Final payment** — remaining balance due upon website completion and delivery
 
+**Tooling:** the developer dashboard tracks each client through this pipeline —
+stage (`New → Viewed → Deposit → Delivered`), contact info, internal call notes,
+the quote and pricing model. When a prospect enters their code, the dashboard
+records it ("viewed 2h ago · 3×"), so follow-up calls are timed off real interest.
+
 ---
 
 ## Pricing Models

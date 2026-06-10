@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findClientByCode } from "@/lib/clients";
+import { findClientByCode, recordPreviewView } from "@/lib/clients";
 import { signToken, PREVIEW_TTL_MS } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
     if (business && client.slug !== business) {
       return NextResponse.json({ error: "That code isn't for this preview." }, { status: 401 });
     }
+
+    // Sales signal: the prospect actually opened their preview. Best-effort.
+    await recordPreviewView(client);
 
     // No cookie — a short-lived token is held in sessionStorage by the page.
     const token = signToken("preview", client.slug, PREVIEW_TTL_MS);

@@ -20,7 +20,16 @@ create table if not exists public.clients (
   status        text not null default 'active' check (status in ('active','disabled')),
   preview_ready boolean not null default false,-- false → shows "Preview is not finished"
   expires_at    timestamptz,                   -- optional auto-expiry
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  -- ── v2: sales pipeline + CRM fields (see migrations/2026-06-10-v2-pipeline.sql) ──
+  stage         text not null default 'new' check (stage in ('new','viewed','deposit','delivered')),
+  contact_email text,
+  contact_phone text,
+  notes         text,                          -- internal notes (never shown to the client)
+  pricing_model text check (pricing_model in ('buyout','rent')),
+  quote         text,                          -- e.g. "$4,500 buy-out" / "$180/mo rent"
+  view_count    integer not null default 0,    -- successful code entries
+  last_viewed_at timestamptz                   -- last successful code entry (sales signal)
 );
 
 create unique index if not exists clients_code_hash_key on public.clients (code_hash);

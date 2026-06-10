@@ -21,6 +21,9 @@ export function generateAccessCode(length = 64): string {
   return out.join("");
 }
 
+export type Stage = "new" | "viewed" | "deposit" | "delivered";
+export type PricingModel = "buyout" | "rent";
+
 export interface Client {
   id: string;
   slug: string;
@@ -30,9 +33,20 @@ export interface Client {
   preview_ready: boolean;
   expires_at: string | null;
   created_at: string;
+  // v2 pipeline/CRM fields — optional so the app still runs on a pre-migration DB.
+  stage?: Stage;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+  pricing_model?: PricingModel | null;
+  quote?: string | null;
+  view_count?: number;
+  last_viewed_at?: string | null;
 }
 
-const COLUMNS = "id, slug, name, industry, status, preview_ready, expires_at, created_at";
+// Select everything that exists so the same code works before and after the
+// v2 migration (an explicit list of v2 columns would 400 on an old DB).
+const COLUMNS = "*";
 
 /** SHA-256 of an access code — what we store, never the plaintext. */
 export function hashCode(code: string): string {
@@ -65,4 +79,23 @@ export async function findClientBySlug(slug: string): Promise<Client | null> {
 
   if (error || !data) return null;
   return data as Client;
+}
+
+/**
+ * Record a successful code entry: bump view_count + last_viewed_at and
+ * auto-advance a 'new' client to 'viewed' (the sales signal that the prospect
+ * actually opened their preview). Best-effort — a pre-migration DB without the
+ * v2 columns just no-ops.
+ */
+export async function recordPreviewView(client: Client): Promise<void> {
+  try {
+    const patch: Record<string, unknown> = {
+      view_count: (client.view_count ?? 0) + 1,
+      last_viewed_at: new Date().toISOString(),
+    };
+    if (!client.stage || client.stage === "new") patch.stage = "viewed";
+    await getSupabaseAdmin().from("clients").update(patch).eq("id", client.id);
+  } catch {
+    /* tracking must never block the client's login */
+  }
 }

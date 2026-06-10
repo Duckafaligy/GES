@@ -72,14 +72,16 @@ components/
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
   LegalDoc.tsx        Data-driven layout for the legal pages (Privacy Policy, Terms of Service)
-lib/clients.ts        Client lookup (Supabase Postgres) — by access code and by slug
+lib/clients.ts        Client model + lookup (by code / by slug) + view tracking; v2 pipeline fields
 lib/supabase.ts       Server-only Supabase service-role client (lazy)
 lib/session.ts        HMAC-signed, short-lived access tokens (no cookies)
 lib/devAuth.ts        Bearer-token guard for the developer dashboard
-app/api/verify-code/  Access code → short-lived preview token
-app/api/dev/          Dashboard auth + client CRUD + build upload (Bearer-gated)
-app/Developer-Dashboard-Page/   Password-gated internal dashboard (clients + uploads)
-supabase/schema.sql   DB schema + private storage bucket (no demo seed)
+app/api/verify-code/  Access code → short-lived preview token (+ records the view)
+app/api/preview-meta/ Public, non-sensitive gate personalization (name/industry/ready by slug)
+app/api/dev/          Dashboard auth + client CRUD + build upload + preview-token + zip download (Bearer-gated)
+app/Developer-Dashboard-Page/   Password-gated internal dashboard (clients, pipeline, uploads)
+supabase/schema.sql   Full DB schema (v2) + private storage bucket (no demo seed)
+supabase/migrations/  Incremental SQL for existing databases (2026-06-10-v2-pipeline.sql)
 scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
@@ -241,6 +243,30 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
 ## Recent changes
+
+### v0.7.0 — sales pipeline CRM, personalized portal, view tracking
+- **The dashboard is now a sales pipeline.** Each client carries a **stage**
+  (`New → Viewed → Deposit → Delivered`, matching the GES_Services.md flow),
+  contact email/phone, internal **notes**, a **quote** and a **pricing model**
+  (flat buy-out vs renting) — all editable in a per-client **Details** panel
+  with a stage stepper. The stat strip adds **Viewed by client** and **Deposit+**.
+- **View tracking — the sales signal.** A successful code entry bumps
+  `view_count` + `last_viewed_at` and auto-advances a `new` client to `viewed`;
+  the dashboard shows "👁 viewed 2h ago · 3×" per client, so you know exactly
+  when a prospect opened their preview.
+- **Personalized client portal.** The gate greets the prospect by business name
+  + industry chip (via the public, non-sensitive `/api/preview-meta`); the
+  authed header shows the business name; an unknown slug gets a proper
+  "No preview at this address" page instead of a code box that can never work.
+- **Schema v2 + graceful migration.** `supabase/schema.sql` now creates the full
+  v2 table; existing DBs run `supabase/migrations/2026-06-10-v2-pipeline.sql`.
+  The app **runs on a pre-migration DB** (selects `*`, optional fields, insert
+  falls back, PATCH explains exactly which migration to run).
+- Earlier in this line: portal rebranded to GES acid/amber glass; dashboard
+  search/skeletons/error states; sandboxed preview iframe; production requires
+  real env vars; fixed the doubled `<base href>` that broke relative-path
+  builds; fixed the flaky hero video loop; anchor-scroll offset + focus rings;
+  reduced-motion support; OpenGraph/Twitter metadata.
 
 ### v0.6.0 — view + download builds, zero-setup dashboard access
 - **View & Download per client.** Each client row in the dashboard now has a
