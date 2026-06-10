@@ -444,8 +444,25 @@ function UploadPreview({
   async function upload() {
     if (!slug) { onErr("Pick a client to upload to."); return; }
     if (!hasIndex) { onErr("No index.html at the build root — select the built output folder (dist/ or out/)."); return; }
+
+    // Clean replace: a new build should REPLACE the old one, not merge with it
+    // (otherwise orphaned files from the previous build linger in storage).
+    const target = clients.find((c) => c.slug === slug);
+    if (target?.preview_ready &&
+        !confirm(`"${slug}" already has an uploaded build. Replace it?\n\nThe old files are removed first, so nothing stale is left behind.`)) {
+      return;
+    }
+
     setProgress({ done: 0, total: picked.length });
     try {
+      // Wipe the client's existing files before uploading the new build.
+      const clr = await api("/api/dev/upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      if (!clr.ok) { const d = await clr.json().catch(() => ({})); throw new Error(`Couldn't clear old files: ${d.error ?? clr.status}`); }
+
       for (let i = 0; i < picked.length; i++) {
         const { file, rel } = picked[i];
         const fd = new FormData();
@@ -461,7 +478,7 @@ function UploadPreview({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug, preview_ready: true }),
       });
-      onDone(`Uploaded ${picked.length} files to "${slug}" — preview is now live.`);
+      onDone(`Uploaded ${picked.length} files to "${slug}" — preview is now live (old build replaced).`);
       setPicked([]); setSkipped(0); setOversize([]); setHasIndex(false);
     } catch (e) { onErr((e as Error).message); }
     finally { setProgress(null); }
@@ -477,7 +494,7 @@ function UploadPreview({
         then drop the <strong className="text-white">built output</strong> folder here — plain HTML, or
         <span className="text-[var(--acid)]"> dist/</span> /<span className="text-[var(--acid)]"> out/</span>. Don&apos;t upload the
         source project: <span className="text-white">node_modules</span> / .git / .next are skipped automatically and never need uploading.
-        Must contain an index.html.
+        Must contain an index.html. <span className="text-white">Re-uploading replaces</span> the client&apos;s previous build — old files are cleared first, so nothing stale is left behind.
       </p>
 
       <label className="block mb-3">
