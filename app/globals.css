@@ -243,6 +243,20 @@
 .animate-float    { animation: float 11s ease-in-out infinite; }
 .animate-float-d1 { animation: float 13s ease-in-out infinite; animation-delay: -4s; }
 
+/* ── Respect reduced-motion: tame looping/heavy motion for users who ask ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marquee-track,
+  .animate-float,
+  .animate-float-d1,
+  .blink { animation: none !important; }
+}
+
 /* ── Loading skeleton shimmer (dashboard) ── */
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skeleton {

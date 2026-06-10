@@ -21,6 +21,19 @@ interface PickedFile {
 
 const TOKEN_KEY = "ges_dev_token";
 
+/* ── misc helpers ── */
+function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!then) return "";
+  const s = Math.floor((Date.now() - then) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30); if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
+}
+
 /* ── folder helpers ── */
 function stripRoot(p: string): string {
   const i = p.indexOf("/");
@@ -605,10 +618,16 @@ function ClientCard({
           <span className="opacity-40">·</span>
           <button onClick={copy} className="ul-link text-[var(--acid)]">{url}</button>
           {copied && <span className="text-[var(--acid)]">copied ✓</span>}
+          {c.created_at && (
+            <>
+              <span className="opacity-40">·</span>
+              <span className="opacity-70">added {timeAgo(c.created_at)}</span>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap text-[11px] mono">
+      <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 text-[11px] mono [&>button]:text-center">
         <button
           onClick={view}
           disabled={!c.preview_ready}

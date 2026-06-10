@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, ArrowRight, Globe, Eye, EyeOff, XCircle } from "lucide-react";
+import { Lock, ArrowRight, Globe, Eye, EyeOff, XCircle, X } from "lucide-react";
 import Link from "next/link";
 
 const b64urlDecode = (s: string) => {
@@ -30,6 +30,7 @@ export default function BusinessPreview() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [frameLoaded, setFrameLoaded] = useState(false);
 
   useEffect(() => {
     const key = `ges_pt_${business}`;
@@ -77,23 +78,35 @@ export default function BusinessPreview() {
   if (token) {
     return (
       <div className="min-h-screen bg-[#070707] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-2 text-xs glass border-b border-white/10 flex-shrink-0">
-          <span className="flex items-center gap-2 text-[#ccff00]/90 font-semibold tracking-wider uppercase">
+        <div className="flex items-center justify-between px-5 py-2.5 glass border-b border-[#ccff00]/10 flex-shrink-0">
+          <span className="flex items-center gap-2.5 text-[#ccff00]/90 font-semibold tracking-[0.18em] uppercase text-[11px]">
+            <span className="w-5 h-5 rounded bg-[var(--acid)] text-[#0a0a0a] grid place-items-center font-black text-[11px]">G</span>
             <Lock size={11} /> GES Client Preview
           </span>
-          <button onClick={exit} className="text-gray-400 hover:text-white transition-colors">
-            Exit preview
+          <button onClick={exit} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs">
+            <X size={13} /> Exit preview
           </button>
         </div>
         {/* Sandbox without allow-same-origin: the uploaded build runs as an
             opaque origin, so its scripts can't read this page's sessionStorage
             (the preview token). Static assets still load over /raw/<token>/. */}
-        <iframe
-          src={`/raw/${token}`}
-          sandbox="allow-scripts allow-forms allow-popups"
-          className="flex-1 w-full border-0"
-          title="GES Client Preview"
-        />
+        <div className="relative flex-1">
+          {!frameLoaded && (
+            <div className="absolute inset-0 z-10 grid place-items-center bg-[#070707]">
+              <div className="flex flex-col items-center gap-4">
+                <span className="w-9 h-9 border-2 border-[#ccff00]/25 border-t-[#ccff00] rounded-full animate-spin" />
+                <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-gray-500">Loading your preview…</span>
+              </div>
+            </div>
+          )}
+          <iframe
+            src={`/raw/${token}`}
+            onLoad={() => setFrameLoaded(true)}
+            sandbox="allow-scripts allow-forms allow-popups"
+            className="absolute inset-0 w-full h-full border-0"
+            title="GES Client Preview"
+          />
+        </div>
       </div>
     );
   }
