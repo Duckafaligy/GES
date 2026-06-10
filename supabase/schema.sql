@@ -15,7 +15,6 @@ create table if not exists public.clients (
   id            uuid primary key default gen_random_uuid(),
   slug          text unique not null,          -- used in the preview path, e.g. bloom-florist
   name          text not null,
-  industry      text,
   code_hash     text not null,                 -- SHA-256 of the access code (used for lookup)
   access_code   text,                          -- plaintext code, kept so it's recoverable later
   status        text not null default 'active' check (status in ('active','disabled')),

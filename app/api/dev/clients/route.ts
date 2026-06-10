@@ -33,8 +33,7 @@ export async function POST(req: NextRequest) {
   if (!isDev(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const name = String(body?.name ?? "").trim();
-  const industry = String(body?.industry ?? "").trim() || null;
-  const slugInput = String(body?.slug ?? "").trim();
+  const slugInput = String(body?.slug ?? "").trim(); // optional custom slug
 
   if (!name) return NextResponse.json({ error: "Name is required." }, { status: 400 });
 
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
   let n = 1;
   while (used.has(candidate)) { n++; candidate = `${base}-${n}`; }
 
-  const baseRow = { slug: candidate, name, industry, code_hash: hashCode(code), status: "active", preview_ready: false };
+  const baseRow = { slug: candidate, name, code_hash: hashCode(code), status: "active", preview_ready: false };
   // Keep the plaintext code too, so it's recoverable. Falls back gracefully if
   // the access_code column isn't there yet (pre-migration DB).
   let { data, error } = await admin

@@ -7,7 +7,6 @@ interface DevClient {
   id: string;
   slug: string;
   name: string;
-  industry: string | null;
   status: "active" | "disabled";
   preview_ready: boolean;
   expires_at: string | null;
@@ -230,8 +229,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
   const filtered = q
     ? clients.filter((c) =>
         c.name.toLowerCase().includes(q) ||
-        c.slug.toLowerCase().includes(q) ||
-        (c.industry ?? "").toLowerCase().includes(q)
+        c.slug.toLowerCase().includes(q)
       )
     : clients;
 
@@ -285,7 +283,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name, slug or industry…"
+                placeholder="Search by name or slug…"
                 className="w-full bg-transparent border-2 border-[var(--line)] pl-9 pr-3 py-2.5 mono text-xs focus:outline-none focus:border-[var(--acid)]"
               />
             </div>
@@ -354,8 +352,15 @@ function AddClient({
   onReveal: (label: string, code: string) => void;
 }) {
   const [name, setName] = useState("");
-  const [industry, setIndustry] = useState("");
+  const [slug, setSlug] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Live preview of the slug the server will use (mirrors its slugify).
+  const slugPreview = (slug || name)
+    .toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -364,11 +369,11 @@ function AddClient({
       const res = await api("/api/dev/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, industry }),
+        body: JSON.stringify({ name, slug }),
       });
       const data = await res.json();
       if (!res.ok) { onErr(data.error ?? "Failed to add client."); return; }
-      setName(""); setIndustry("");
+      setName(""); setSlug("");
       if (data.code) onReveal(data.client.name, data.code);
       onDone(`Added "${data.client.name}" → preview URL /preview/${data.client.slug}.`);
     } catch (e) { onErr((e as Error).message); }
@@ -380,12 +385,14 @@ function AddClient({
       <div className="eyebrow text-[var(--muted)] mb-4">Add Client</div>
       <form onSubmit={submit} className="grid sm:grid-cols-2 gap-3">
         <Field label="Business name *" value={name} onChange={setName} placeholder="Blooms & Co." />
-        <Field label="Industry" value={industry} onChange={setIndustry} placeholder="Florist" />
+        <Field label="Custom slug (optional)" value={slug} onChange={setSlug} placeholder="blooms-florist" mono />
         <div className="sm:col-span-2 flex items-center gap-4 flex-wrap">
           <button type="submit" disabled={busy || !name} className="btn-brut disabled:opacity-50">
             {busy ? "Adding…" : "Add Client"}
           </button>
-          <span className="mono text-[11px] text-[var(--muted)]">A 64-char access code is generated automatically and shown once.</span>
+          <span className="mono text-[11px] text-[var(--muted)]">
+            Preview URL: <span className="text-[var(--acid)]">/preview/{slugPreview || "…"}</span> · a 64-char code is generated automatically.
+          </span>
         </div>
       </form>
     </section>
@@ -671,8 +678,6 @@ function ClientCard({
           {c.status === "disabled" && <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-red-500/60 text-red-400 px-2 py-0.5">Disabled</span>}
         </div>
         <div className="mono text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-2 flex-wrap">
-          <span>{c.industry || "—"}</span>
-          <span className="opacity-40">·</span>
           <button onClick={copy} className="ul-link text-[var(--acid)]">{url}</button>
           {copied && <span className="text-[var(--acid)]">copied ✓</span>}
           {c.created_at && (

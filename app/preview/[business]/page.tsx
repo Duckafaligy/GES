@@ -31,8 +31,8 @@ export default function BusinessPreview() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [frameLoaded, setFrameLoaded] = useState(false);
-  // Personalization: business name/industry for this slug (null = unknown/404).
-  const [meta, setMeta] = useState<{ name: string; industry: string | null } | null>(null);
+  // Personalization: business name for this slug (null = unknown/404).
+  const [meta, setMeta] = useState<{ name: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function BusinessPreview() {
     fetch(`/api/preview-meta?business=${encodeURIComponent(business)}`)
       .then((r) => (r.status === 404 ? Promise.reject("nf") : r.json()))
       .then((d) => {
-        if (!cancelled && d?.found) setMeta({ name: d.name, industry: d.industry });
+        if (!cancelled && d?.found) setMeta({ name: d.name });
       })
       .catch((e) => { if (!cancelled && e === "nf") setNotFound(true); });
     return () => { cancelled = true; };
@@ -181,13 +181,6 @@ export default function BusinessPreview() {
           <h1 className="text-3xl font-black text-center mb-3 bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
             {meta?.name ?? "Your Preview"}
           </h1>
-          {meta?.industry && (
-            <div className="flex justify-center mb-3">
-              <span className="inline-flex items-center text-[10px] uppercase tracking-[0.18em] font-semibold text-[#ccff00]/80 bg-[#ccff00]/10 border border-[#ccff00]/20 rounded-full px-3 py-1">
-                {meta.industry}
-              </span>
-            </div>
-          )}
           <p className="text-gray-400 text-sm text-center mb-8 leading-relaxed">
             {meta?.name
               ? `Enter the access code from your consultation call to unlock the website preview we built for ${meta.name}.`

@@ -25,7 +25,6 @@ export interface Client {
   id: string;
   slug: string;
   name: string;
-  industry: string | null;
   status: "active" | "disabled";
   preview_ready: boolean;
   expires_at: string | null;

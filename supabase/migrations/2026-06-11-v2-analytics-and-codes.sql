@@ -22,3 +22,7 @@ create table if not exists public.client_views (
 );
 create index if not exists client_views_client_idx on public.client_views (client_id, viewed_at desc);
 alter table public.client_views enable row level security;
+
+-- Optional cleanup: the `industry` field was removed from the app. Uncomment to
+-- drop the now-unused column (it's harmless to leave in place).
+-- alter table public.clients drop column if exists industry;

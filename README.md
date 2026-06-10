@@ -77,7 +77,7 @@ lib/supabase.ts       Server-only Supabase service-role client (lazy)
 lib/session.ts        HMAC-signed, short-lived access tokens (no cookies)
 lib/devAuth.ts        Bearer-token guard for the developer dashboard
 app/api/verify-code/  Access code → short-lived preview token (+ logs the view)
-app/api/preview-meta/ Public, non-sensitive gate personalization (name/industry/ready by slug)
+app/api/preview-meta/ Public, non-sensitive gate personalization (business name + ready, by slug)
 app/api/dev/          Dashboard auth + client CRUD + build upload + preview-token + zip download + views analytics (Bearer-gated)
 app/Developer-Dashboard-Page/   Password-gated internal dashboard (clients, uploads, viewer analytics)
 supabase/schema.sql   Full DB schema (v2: clients + client_views) + private storage bucket (no demo seed)
@@ -172,13 +172,16 @@ finished — check back in a day."
 Manage it all from the **developer dashboard** at `/Developer-Dashboard-Page`
 (gated by **`DEV_DASHBOARD_PASSWORD` + `DEV_DASHBOARD_DOB`** — both a password and
 a date of birth are required; the dev token lives in `sessionStorage`, never a
-cookie). Adding a client **auto-generates a 64-character access code** (A–Z a–z
-0–9); the plaintext is shown once in a copy dialog **and stored on the client row
-(`access_code`)** so you can recover it later from the per-client panel — use
-**New code** on a client to rotate it. **Upload a built site folder**
-by drag-drop (or picker) — the importer skips `node_modules` / `.git` / `.next`,
-requires an `index.html`, and pushes only web files to Storage, then marks the
-preview ready. Files over ~4 MB are flagged (Vercel's per-request upload limit) —
+cookie). Adding a client takes just the **business name** (plus an optional
+**custom slug** — leave it blank to auto-derive the slug from the name, e.g.
+`Blooms & Co.` → `blooms-co`, auto-suffixed on collision). It **auto-generates a
+64-character access code** (A–Z a–z 0–9); the plaintext is shown once in a copy
+dialog **and stored on the client row (`access_code`)** so you can recover it
+later from the per-client panel — use **New code** on a client to rotate it.
+**Upload a built site folder** by drag-drop (or picker) — the importer skips
+`node_modules` / `.git` / `.next`, requires an `index.html`, and pushes only web
+files to Storage, then marks the preview ready. **Re-uploading replaces** the
+previous build (old files are cleared first). Files over ~4 MB are flagged (Vercel's per-request upload limit) —
 compress large media or host it elsewhere.
 
 **Setup:** create a Supabase project, run `supabase/schema.sql` in its SQL editor
@@ -261,8 +264,8 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
   `client_views` event-log table holds one row per open for the timeline.
   Recording is best-effort and never blocks the client's login.
 - **Personalized client portal.** The gate greets the prospect by business name
-  + industry chip (via the public, non-sensitive `/api/preview-meta` — name /
-  industry / ready only, no codes or analytics); the authed header shows the
+  (via the public, non-sensitive `/api/preview-meta` — business name + ready
+  only, no codes or analytics); the authed header shows the
   business name; an unknown slug gets a proper "No preview at this address" page
   instead of a code box that can never work.
 - **Recoverable access codes.** The generated 64-char code is now also stored in
@@ -273,6 +276,10 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - **Two-factor dashboard login.** `/Developer-Dashboard-Page` now requires a
   **password *and* a date of birth** (`DEV_DASHBOARD_PASSWORD` + `DEV_DASHBOARD_DOB`),
   both checked constant-time with a single generic error.
+- **Add Client simplified.** The form is now just **business name + optional
+  custom slug** (with a live `/preview/<slug>` preview); the **industry** field
+  was removed everywhere. **Re-uploading a build cleanly replaces** the old one
+  (existing files are wiped first) so nothing stale lingers.
 - **Schema v2 + graceful migration.** `supabase/schema.sql` creates the full v2
   schema (analytics columns + `access_code` + `client_views`); existing DBs run
   `supabase/migrations/2026-06-11-v2-analytics-and-codes.sql`. The app **runs on a
