@@ -85,7 +85,15 @@ export default function BusinessPreview() {
             Exit preview
           </button>
         </div>
-        <iframe src={`/raw/${token}`} className="flex-1 w-full border-0" title="GES Client Preview" />
+        {/* Sandbox without allow-same-origin: the uploaded build runs as an
+            opaque origin, so its scripts can't read this page's sessionStorage
+            (the preview token). Static assets still load over /raw/<token>/. */}
+        <iframe
+          src={`/raw/${token}`}
+          sandbox="allow-scripts allow-forms allow-popups"
+          className="flex-1 w-full border-0"
+          title="GES Client Preview"
+        />
       </div>
     );
   }
