@@ -62,6 +62,13 @@ export default function VideoHero() {
       tryPlay();
     }, 400);
 
+    // The clip holds on its final frame for ~1s before the end (measured with
+    // ffmpeg: it goes static ~6.9s into the 7.96s file). Native `loop` only
+    // restarts at the very end, so that hold reads as a dead pause every loop.
+    // We restart early — just before the hold — so the loop is seamless.
+    const TRAIL_TRIM = 1.1; // seconds of trailing static hold to skip
+    const loopEndOf = (d: number) => (d > 2 ? d - TRAIL_TRIM : d);
+
     // Manual-scrub fallback: if it's STILL paused after a short grace (autoplay
     // hard-blocked), advance the frame ourselves ~24fps so it animates anyway.
     const GRACE_MS = 1500;
@@ -73,11 +80,18 @@ export default function VideoHero() {
       raf = requestAnimationFrame(frame);
       const d = v.duration;
       if (!Number.isFinite(d) || d === 0) return;
-      if (!v.paused) return;               // native playback is running — leave it
+      const loopEnd = loopEndOf(d);
+
+      if (!v.paused) {
+        // Native playback: jump back before the trailing freeze → no dead pause.
+        if (v.currentTime >= loopEnd) { try { v.currentTime = 0; } catch {} }
+        return;
+      }
+      // Paused (autoplay blocked): drive frames ourselves, looping at loopEnd.
       if (now - t0 < GRACE_MS) return;     // give real autoplay a chance first
       if (now - lastSeek < FRAME_MS) return;
       lastSeek = now;
-      try { v.currentTime = ((now - t0 - GRACE_MS) / 1000) % d; } catch { /* not seekable yet */ }
+      try { v.currentTime = ((now - t0 - GRACE_MS) / 1000) % loopEnd; } catch { /* not seekable yet */ }
     };
     raf = requestAnimationFrame(frame);
 
