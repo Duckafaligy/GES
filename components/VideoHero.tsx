@@ -66,7 +66,7 @@ export default function VideoHero() {
     // ffmpeg: it goes static ~6.9s into the 7.96s file). Native `loop` only
     // restarts at the very end, so that hold reads as a dead pause every loop.
     // We restart early — just before the hold — so the loop is seamless.
-    const TRAIL_TRIM = 1.1; // seconds of trailing static hold to skip
+    const TRAIL_TRIM = 1.4; // seconds of trailing static hold to skip (tuned to the clip)
     const loopEndOf = (d: number) => (d > 2 ? d - TRAIL_TRIM : d);
 
     // Manual-scrub fallback: if it's STILL paused after a short grace (autoplay
