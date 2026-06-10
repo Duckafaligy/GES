@@ -23,119 +23,72 @@ export default function VideoHero() {
   const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
   const videoScale = useTransform(scrollYProgress, [0, 1], [1.05, 1.18]);
 
-  // Seamless loop + resilient autoplay. Product-hero clips often hold on their
-  // final frame for up to a second before restarting, which reads as a dead
-  // pause. We optionally skip that trailing hold — but only when it's a clear,
-  // sustained freeze in the LAST fifth of the clip, so a slow-moving subject
-  // (a watch turning on black) can't be mistaken for a freeze and collapse the
-  // hero into a near-static micro-loop. Native `loop` is the safety net.
+  // Make the hero animate on EVERY device. We try smooth native playback first
+  // (desktop/most phones allow muted inline autoplay). But some platforms
+  // — iPadOS, Low-Power-Mode, strict tablets — HARD-refuse muted autoplay, and
+  // no play() call can override that. So as a guaranteed fallback we drive the
+  // frames ourselves by stepping `currentTime` in a rAF loop: seeking needs no
+  // autoplay permission, so the clip still moves where play() is blocked.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
-    // React doesn't reliably set the muted *property* from the JSX attribute, and
-    // browsers (tablets/iPadOS especially) only allow autoplay when the element
-    // is provably muted — so set it on the DOM node directly. This is the usual
-    // reason a hero video autoplays on desktop/phone but not tablet.
+    // React doesn't reliably set the muted *property* from the JSX attribute,
+    // and browsers only autoplay provably-muted video — set it on the node.
     v.muted = true;
     v.defaultMuted = true;
     v.setAttribute("muted", "");
     v.playsInline = true;
 
-    // ── Resilient autoplay: some browsers ignore the attribute, defer it, or
-    //    pause the video when the tab is backgrounded. Nudge it whenever we can.
-    const ensurePlaying = () => {
-      if (v.paused) v.play().catch(() => {});
-    };
-    ensurePlaying();
-    v.addEventListener("loadeddata", ensurePlaying);
-    v.addEventListener("canplay", ensurePlaying);
-    v.addEventListener("loadedmetadata", ensurePlaying);
-    const onVisible = () => { if (!document.hidden) ensurePlaying(); };
+    const tryPlay = () => { v.muted = true; v.play().catch(() => {}); };
+    tryPlay();
+
+    const onReady = () => tryPlay();
+    v.addEventListener("loadeddata", onReady);
+    v.addEventListener("canplay", onReady);
+    v.addEventListener("loadedmetadata", onReady);
+    const onVisible = () => { if (!document.hidden) tryPlay(); };
     document.addEventListener("visibilitychange", onVisible);
 
-    // Last-resort fallback: if autoplay was still blocked, start on the very
-    // first user interaction anywhere on the page, then stop listening.
-    const kick = () => {
-      v.muted = true;
-      v.play().catch(() => {});
-      if (!v.paused) removeKick();
-    };
+    // Start on the first user interaction too (covers gesture-required cases).
     const kickEvents = ["pointerdown", "touchstart", "click", "keydown", "scroll"] as const;
-    const removeKick = () => kickEvents.forEach((e) => window.removeEventListener(e, kick));
+    const kick = () => tryPlay();
     kickEvents.forEach((e) => window.addEventListener(e, kick, { passive: true }));
 
-    const canvas = document.createElement("canvas");
-    canvas.width = 32;
-    canvas.height = 18;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    // Re-attempt native play for a few seconds (handles deferred autoplay).
+    let tries = 0;
+    const poll = setInterval(() => {
+      if (!v.paused || tries++ > 20) { clearInterval(poll); return; }
+      tryPlay();
+    }, 400);
 
-    let prev: Uint8ClampedArray | null = null;
-    let frozenMs = 0;
-    let cutAt = Infinity; // learned cut time (s); the hold begins just after it
-    let learn = !!ctx;    // disable learning if we can't sample (just native loop)
-    let acc = 0;
-    let last = performance.now();
+    // Manual-scrub fallback: if it's STILL paused after a short grace (autoplay
+    // hard-blocked), advance the frame ourselves ~24fps so it animates anyway.
+    const GRACE_MS = 1500;
+    const FRAME_MS = 1000 / 24;
+    const t0 = performance.now();
+    let lastSeek = 0;
     let raf = 0;
-    const SAMPLE_MS = 80; // ~12 samples/sec — trivial on a 32×18 canvas
-
-    const restart = () => {
-      prev = null;
-      frozenMs = 0;
-      v.currentTime = 0;
-      v.play().catch(() => {});
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      const d = v.duration;
+      if (!Number.isFinite(d) || d === 0) return;
+      if (!v.paused) return;               // native playback is running — leave it
+      if (now - t0 < GRACE_MS) return;     // give real autoplay a chance first
+      if (now - lastSeek < FRAME_MS) return;
+      lastSeek = now;
+      try { v.currentTime = ((now - t0 - GRACE_MS) / 1000) % d; } catch { /* not seekable yet */ }
     };
+    raf = requestAnimationFrame(frame);
 
-    const tick = (now: number) => {
-      raf = requestAnimationFrame(tick);
-      const dt = now - last;
-      last = now;
-      if (v.paused || !v.videoWidth || !Number.isFinite(v.duration)) return;
-
-      // Once the hold point is known, cut just before it — checked every frame.
-      if (v.currentTime >= cutAt) { restart(); return; }
-      if (!learn || Number.isFinite(cutAt)) return; // learned/disabled: native loop
-
-      // First pass only: sample frames to find where motion stops.
-      acc += dt;
-      if (acc < SAMPLE_MS) return;
-      acc = 0;
-
-      try {
-        ctx!.drawImage(v, 0, 0, canvas.width, canvas.height);
-        const cur = ctx!.getImageData(0, 0, canvas.width, canvas.height).data;
-        if (prev) {
-          let diff = 0;
-          for (let i = 0; i < cur.length; i += 4) {
-            diff += Math.abs(cur[i] - prev[i]) + Math.abs(cur[i + 1] - prev[i + 1]);
-          }
-          const changed = diff / (cur.length / 4); // avg channel delta per pixel
-          if (changed < 1.2) frozenMs += SAMPLE_MS;
-          else frozenMs = 0;
-        }
-        prev = cur;
-
-        // A SUSTAINED freeze (≥0.4s) in the last 20% of the clip = real trailing
-        // hold. Cut where it began, but never earlier than 80% in, so even a
-        // misread can only ever trim the very tail — never the whole animation.
-        if (frozenMs >= 400 && v.currentTime > v.duration * 0.8) {
-          const began = v.currentTime - frozenMs / 1000 - 0.1;
-          cutAt = Math.max(v.duration * 0.8, began);
-          restart();
-        }
-      } catch {
-        learn = false; // tainted canvas / read error → stop learning, keep looping
-      }
-    };
-
-    raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
-      v.removeEventListener("loadeddata", ensurePlaying);
-      v.removeEventListener("canplay", ensurePlaying);
-      v.removeEventListener("loadedmetadata", ensurePlaying);
+      clearInterval(poll);
+      v.removeEventListener("loadeddata", onReady);
+      v.removeEventListener("canplay", onReady);
+      v.removeEventListener("loadedmetadata", onReady);
       document.removeEventListener("visibilitychange", onVisible);
-      removeKick();
+      kickEvents.forEach((e) => window.removeEventListener(e, kick));
     };
   }, []);
 
