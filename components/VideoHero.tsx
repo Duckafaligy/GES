@@ -33,6 +33,15 @@ export default function VideoHero() {
     const v = videoRef.current;
     if (!v) return;
 
+    // React doesn't reliably set the muted *property* from the JSX attribute, and
+    // browsers (tablets/iPadOS especially) only allow autoplay when the element
+    // is provably muted — so set it on the DOM node directly. This is the usual
+    // reason a hero video autoplays on desktop/phone but not tablet.
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("muted", "");
+    v.playsInline = true;
+
     // ── Resilient autoplay: some browsers ignore the attribute, defer it, or
     //    pause the video when the tab is backgrounded. Nudge it whenever we can.
     const ensurePlaying = () => {
@@ -41,8 +50,20 @@ export default function VideoHero() {
     ensurePlaying();
     v.addEventListener("loadeddata", ensurePlaying);
     v.addEventListener("canplay", ensurePlaying);
+    v.addEventListener("loadedmetadata", ensurePlaying);
     const onVisible = () => { if (!document.hidden) ensurePlaying(); };
     document.addEventListener("visibilitychange", onVisible);
+
+    // Last-resort fallback: if autoplay was still blocked, start on the very
+    // first user interaction anywhere on the page, then stop listening.
+    const kick = () => {
+      v.muted = true;
+      v.play().catch(() => {});
+      if (!v.paused) removeKick();
+    };
+    const kickEvents = ["pointerdown", "touchstart", "click", "keydown", "scroll"] as const;
+    const removeKick = () => kickEvents.forEach((e) => window.removeEventListener(e, kick));
+    kickEvents.forEach((e) => window.addEventListener(e, kick, { passive: true }));
 
     const canvas = document.createElement("canvas");
     canvas.width = 32;
@@ -112,7 +133,9 @@ export default function VideoHero() {
       cancelAnimationFrame(raf);
       v.removeEventListener("loadeddata", ensurePlaying);
       v.removeEventListener("canplay", ensurePlaying);
+      v.removeEventListener("loadedmetadata", ensurePlaying);
       document.removeEventListener("visibilitychange", onVisible);
+      removeKick();
     };
   }, []);
 
