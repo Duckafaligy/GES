@@ -55,17 +55,18 @@ function rewriteCss(css: string, base: string): string {
 /** Inject <base> and rewrite root-absolute URLs so any static build resolves. */
 function rewriteHtml(html: string, base: string): string {
   let out = html;
-  // 1) <base> for relative URLs
-  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${base}">`);
-  else out = `<base href="${base}">` + out;
-  // 2) root-absolute attribute URLs (skip protocol-relative "//")
+  // 1) root-absolute attribute URLs (skip protocol-relative "//")
   out = out.replace(/(\s(?:src|href|poster)\s*=\s*["'])\/(?!\/)/gi, (_m, p) => `${p}${base}`);
-  // 3) srcset (comma-separated "url descriptor" pairs)
+  // 2) srcset (comma-separated "url descriptor" pairs)
   out = out.replace(/(\ssrcset\s*=\s*["'])([^"']*)(["'])/gi, (_m, pre, val, post) =>
     `${pre}${(val as string).replace(/(^|,\s*)\/(?!\/)/g, (_x, sep) => `${sep}${base}`)}${post}`
   );
-  // 4) url()/@import inside inline styles + <style> blocks
+  // 3) url()/@import inside inline styles + <style> blocks
   out = rewriteCss(out, base);
+  // 4) <base> for relative URLs — injected LAST so its own root-absolute href
+  //    (it starts with "/raw/…") isn't re-prefixed by the rewrite in step 1.
+  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${base}">`);
+  else out = `<base href="${base}">` + out;
   return out;
 }
 
