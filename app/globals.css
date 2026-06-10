@@ -24,6 +24,9 @@
 
   html {
     scroll-behavior: smooth;
+    /* Offset in-page anchor jumps (#services, #contact…) so section headers
+       land BELOW the ~92px fixed nav + ticker instead of hiding under it. */
+    scroll-padding-top: 6.5rem;
   }
 
   body {
@@ -32,6 +35,13 @@
     font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Keyboard focus — a crisp acid ring on interactive elements (mouse clicks
+     stay clean via :focus-visible). */
+  :focus-visible {
+    outline: 2px solid var(--acid);
+    outline-offset: 2px;
   }
 
   ::selection {
