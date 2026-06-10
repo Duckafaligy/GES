@@ -71,14 +71,14 @@ export default function BusinessPreview() {
     setLoading(false);
   }
 
-  if (!checked) return <div className="min-h-screen bg-[#030712]" />;
+  if (!checked) return <div className="min-h-screen bg-[#070707]" />;
 
   // ── Authed: show the gated build full-screen ──
   if (token) {
     return (
-      <div className="min-h-screen bg-[#030712] flex flex-col">
+      <div className="min-h-screen bg-[#070707] flex flex-col">
         <div className="flex items-center justify-between px-5 py-2 text-xs glass border-b border-white/10 flex-shrink-0">
-          <span className="flex items-center gap-2 text-blue-300/90 font-semibold tracking-wider uppercase">
+          <span className="flex items-center gap-2 text-[#ccff00]/90 font-semibold tracking-wider uppercase">
             <Lock size={11} /> GES Client Preview
           </span>
           <button onClick={exit} className="text-gray-400 hover:text-white transition-colors">
@@ -100,11 +100,11 @@ export default function BusinessPreview() {
 
   // ── Code prompt ──
   return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070707] flex items-center justify-center px-6 relative overflow-hidden">
       <div className="absolute inset-0 grid-pattern" />
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-blue-600/8 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-purple-600/8 rounded-full blur-3xl animate-float-d1" />
+        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-[#ccff00]/[0.07] rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-[#e0a11e]/[0.06] rounded-full blur-3xl animate-float-d1" />
       </div>
 
       <div className="absolute top-6 left-6">
@@ -121,14 +121,14 @@ export default function BusinessPreview() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-blue-500/30 via-purple-500/25 to-transparent blur-2xl opacity-70 pointer-events-none" />
+        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-[#ccff00]/25 via-[#e0a11e]/15 to-transparent blur-2xl opacity-70 pointer-events-none" />
         <div className="relative glass rounded-3xl p-10">
           <motion.div
             animate={{ rotate: [0, -5, 5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/25"
+            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--acid)] to-[var(--acid-deep)] flex items-center justify-center mx-auto mb-8 shadow-[0_0_44px_-4px_rgba(204,255,0,0.45)]"
           >
-            <Lock size={26} className="text-white" />
+            <Lock size={26} className="text-[#0a0a0a]" />
           </motion.div>
 
           <h1 className="text-3xl font-black text-center mb-3 bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
@@ -151,7 +151,7 @@ export default function BusinessPreview() {
                   autoFocus
                   autoComplete="off"
                   spellCheck={false}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/8 transition-all pr-12 font-mono"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#ccff00]/60 focus:bg-white/8 transition-all pr-12 font-mono"
                 />
                 <button
                   type="button"
@@ -185,7 +185,7 @@ export default function BusinessPreview() {
             >
               {loading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   Verifying…
                 </>
               ) : (
@@ -199,9 +199,9 @@ export default function BusinessPreview() {
           <div className="mt-8 pt-6 border-t border-white/8 text-center">
             <p className="text-gray-600 text-xs">
               Don&apos;t have a code?{" "}
-              <a href="/#contact" className="text-blue-400 hover:text-blue-300 transition-colors">
+              <Link href="/#contact" className="text-[#ccff00] hover:text-[#aee000] transition-colors">
                 Contact us →
-              </a>
+              </Link>
             </p>
           </div>
         </div>

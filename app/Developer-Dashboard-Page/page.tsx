@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Search, AlertTriangle } from "lucide-react";
 
 interface DevClient {
   id: string;
@@ -147,6 +148,8 @@ function PasswordGate({ onAuthed }: { onAuthed: (t: string) => void }) {
 function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void }) {
   const [clients, setClients] = useState<DevClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [reveal, setReveal] = useState<{ label: string; code: string } | null>(null);
 
@@ -161,11 +164,13 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await api("/api/dev/clients");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Couldn't load clients (HTTP ${res.status}).`);
       setClients(data.clients ?? []);
-    } catch (e) { setBanner({ kind: "err", msg: (e as Error).message }); }
+    } catch (e) { setLoadError((e as Error).message); }
     finally { setLoading(false); }
   }, [api]);
 
@@ -176,6 +181,14 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
   const showCode = (label: string, code: string) => setReveal({ label, code });
 
   const live = clients.filter((c) => c.preview_ready).length;
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? clients.filter((c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.slug.toLowerCase().includes(q) ||
+        (c.industry ?? "").toLowerCase().includes(q)
+      )
+    : clients;
 
   return (
     <div>
@@ -215,16 +228,57 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
         <section className="mt-10">
           <div className="flex items-center gap-4 mb-4 border-b-2 border-[var(--line)] pb-3">
             <span className="eyebrow">Clients</span>
+            {clients.length > 0 && <span className="mono text-[10px] text-[var(--muted)]">{filtered.length}/{clients.length}</span>}
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
             <button onClick={refresh} className="eyebrow text-[var(--muted)] hover:text-white">Refresh</button>
           </div>
+
+          {clients.length > 3 && (
+            <div className="relative mb-4">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, slug or industry…"
+                className="w-full bg-transparent border-2 border-[var(--line)] pl-9 pr-3 py-2.5 mono text-xs focus:outline-none focus:border-[var(--acid)]"
+              />
+            </div>
+          )}
+
           {loading ? (
-            <div className="mono text-xs text-[var(--muted)]">Loading…</div>
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="hard bg-[#0a0a0a] p-5 flex items-center gap-4">
+                  <div className="flex-1 space-y-2.5">
+                    <div className="skeleton h-3.5 w-40" />
+                    <div className="skeleton h-2.5 w-56" />
+                  </div>
+                  <div className="skeleton h-7 w-44" />
+                </div>
+              ))}
+            </div>
+          ) : loadError ? (
+            <div className="hard-sm bg-[#0a0a0a] p-6">
+              <div className="flex items-center gap-2 text-red-400 mono text-xs font-bold mb-2">
+                <AlertTriangle size={14} /> Couldn&apos;t reach the backend
+              </div>
+              <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-1">{loadError}</p>
+              <p className="mono text-[11px] text-[var(--muted)] leading-relaxed">
+                If this just deployed, make sure <span className="text-white">SUPABASE_URL</span> and{" "}
+                <span className="text-white">SUPABASE_SERVICE_ROLE_KEY</span> are set in your environment.
+              </p>
+              <button onClick={refresh} className="btn-brut mt-4 text-[11px] py-2 px-3">Try again</button>
+            </div>
           ) : clients.length === 0 ? (
-            <div className="mono text-xs text-[var(--muted)]">No clients yet — add one above.</div>
+            <div className="hard-sm bg-[#0a0a0a] p-8 text-center">
+              <div className="mono text-sm font-bold mb-1">No clients yet</div>
+              <div className="mono text-[11px] text-[var(--muted)]">Add your first client above to mint an access code and a preview URL.</div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="mono text-xs text-[var(--muted)] py-4">No clients match &ldquo;{query}&rdquo;.</div>
           ) : (
             <div className="space-y-3">
-              {clients.map((c) => (
+              {filtered.map((c) => (
                 <ClientCard key={c.id} c={c} api={api} onChange={refresh} onErr={err} onReveal={showCode} />
               ))}
             </div>

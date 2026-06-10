@@ -189,30 +189,32 @@
 /* ============================================================
    PORTAL / GLASS SYSTEM  (client login + preview only)
    Deliberately separate from the brutalist landing: soft, dark,
-   frosted, premium. The landing stays hard-edged; the portal
-   feels like a private, high-end client area.
+   frosted, premium — but unmistakably GES (acid lime + amber on
+   near-black), so the private client area shares the brand.
    ============================================================ */
 
-/* Faint construction grid for dark portal backgrounds */
+/* Faint construction grid for dark portal backgrounds (acid-tinted) */
 .grid-pattern {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(204, 255, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(204, 255, 0, 0.05) 1px, transparent 1px);
   background-size: 38px 38px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, #000 30%, transparent 75%);
 }
 
-/* Frosted glass panel */
+/* Frosted glass panel — acid-edged */
 .glass {
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  border: 1px solid rgba(204, 255, 0, 0.12);
   box-shadow:
-    0 24px 70px -24px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 24px 70px -24px rgba(0, 0, 0, 0.82),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* Gradient primary action (portal only) */
+/* Primary action (portal only) — acid fill, black ink, lime glow */
 .btn-primary {
   position: relative;
   display: inline-flex;
@@ -221,16 +223,16 @@
   gap: 0.5rem;
   padding: 0.95rem 1.5rem;
   border-radius: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.01em;
-  color: #fff;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #a855f7 100%);
-  box-shadow: 0 14px 34px -10px rgba(99, 102, 241, 0.6);
+  color: #0a0a0a;
+  background: linear-gradient(135deg, var(--acid) 0%, var(--acid-deep) 100%);
+  box-shadow: 0 14px 34px -10px rgba(204, 255, 0, 0.5);
   transition: box-shadow 0.25s ease, transform 0.15s ease, filter 0.2s ease;
   cursor: pointer;
 }
-.btn-primary:hover  { filter: brightness(1.08); box-shadow: 0 18px 44px -10px rgba(99, 102, 241, 0.78); }
+.btn-primary:hover  { filter: brightness(1.06); box-shadow: 0 18px 46px -8px rgba(204, 255, 0, 0.7); transform: translateY(-1px); }
 .btn-primary:active { transform: translateY(1px); }
 
 /* Ambient floating blobs */
@@ -240,3 +242,19 @@
 }
 .animate-float    { animation: float 11s ease-in-out infinite; }
 .animate-float-d1 { animation: float 13s ease-in-out infinite; animation-delay: -4s; }
+
+/* ── Loading skeleton shimmer (dashboard) ── */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--line) 10%, transparent);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--line) 14%, transparent), transparent);
+  animation: shimmer 1.4s infinite;
+}
