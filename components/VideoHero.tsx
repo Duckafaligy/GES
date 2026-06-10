@@ -23,25 +23,36 @@ export default function VideoHero() {
   const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
   const videoScale = useTransform(scrollYProgress, [0, 1], [1.05, 1.18]);
 
-  // Seamless loop. Product-hero clips often hold on the final frame for up to a
-  // second before restarting, which reads as a dead pause. We learn where that
-  // trailing freeze begins: on the first pass we sample tiny frames into an
-  // offscreen canvas and note when the picture stops changing in the back half
-  // of the clip. From then on we cut a hair *before* that point on every loop,
-  // so the hold never plays and there's no visible seam — no fixed guess.
+  // Seamless loop + resilient autoplay. Product-hero clips often hold on their
+  // final frame for up to a second before restarting, which reads as a dead
+  // pause. We optionally skip that trailing hold — but only when it's a clear,
+  // sustained freeze in the LAST fifth of the clip, so a slow-moving subject
+  // (a watch turning on black) can't be mistaken for a freeze and collapse the
+  // hero into a near-static micro-loop. Native `loop` is the safety net.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+
+    // ── Resilient autoplay: some browsers ignore the attribute, defer it, or
+    //    pause the video when the tab is backgrounded. Nudge it whenever we can.
+    const ensurePlaying = () => {
+      if (v.paused) v.play().catch(() => {});
+    };
+    ensurePlaying();
+    v.addEventListener("loadeddata", ensurePlaying);
+    v.addEventListener("canplay", ensurePlaying);
+    const onVisible = () => { if (!document.hidden) ensurePlaying(); };
+    document.addEventListener("visibilitychange", onVisible);
 
     const canvas = document.createElement("canvas");
     canvas.width = 32;
     canvas.height = 18;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
 
     let prev: Uint8ClampedArray | null = null;
     let frozenMs = 0;
     let cutAt = Infinity; // learned cut time (s); the hold begins just after it
+    let learn = !!ctx;    // disable learning if we can't sample (just native loop)
     let acc = 0;
     let last = performance.now();
     let raf = 0;
@@ -61,42 +72,48 @@ export default function VideoHero() {
       if (v.paused || !v.videoWidth || !Number.isFinite(v.duration)) return;
 
       // Once the hold point is known, cut just before it — checked every frame.
-      if (v.currentTime >= cutAt) {
-        restart();
-        return;
-      }
-      if (Number.isFinite(cutAt)) return; // learned already; idle until the cut
+      if (v.currentTime >= cutAt) { restart(); return; }
+      if (!learn || Number.isFinite(cutAt)) return; // learned/disabled: native loop
 
       // First pass only: sample frames to find where motion stops.
       acc += dt;
       if (acc < SAMPLE_MS) return;
       acc = 0;
 
-      ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-      const cur = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-      if (prev) {
-        let diff = 0;
-        for (let i = 0; i < cur.length; i += 4) {
-          diff += Math.abs(cur[i] - prev[i]) + Math.abs(cur[i + 1] - prev[i + 1]);
+      try {
+        ctx!.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const cur = ctx!.getImageData(0, 0, canvas.width, canvas.height).data;
+        if (prev) {
+          let diff = 0;
+          for (let i = 0; i < cur.length; i += 4) {
+            diff += Math.abs(cur[i] - prev[i]) + Math.abs(cur[i + 1] - prev[i + 1]);
+          }
+          const changed = diff / (cur.length / 4); // avg channel delta per pixel
+          if (changed < 1.2) frozenMs += SAMPLE_MS;
+          else frozenMs = 0;
         }
-        const changed = diff / (cur.length / 4); // avg channel delta per pixel
-        if (changed < 1.5) frozenMs += SAMPLE_MS;
-        else frozenMs = 0;
-      }
-      prev = cur;
+        prev = cur;
 
-      // Back half + the frame has held still = trailing hold. Record where it
-      // began (≈ now − how long it's been still) and cut ~3 frames earlier so
-      // even the first hint of the freeze never plays.
-      if (frozenMs >= 160 && v.currentTime > v.duration * 0.5) {
-        cutAt = Math.max(0.1, v.currentTime - frozenMs / 1000 - 0.1);
-        restart();
+        // A SUSTAINED freeze (≥0.4s) in the last 20% of the clip = real trailing
+        // hold. Cut where it began, but never earlier than 80% in, so even a
+        // misread can only ever trim the very tail — never the whole animation.
+        if (frozenMs >= 400 && v.currentTime > v.duration * 0.8) {
+          const began = v.currentTime - frozenMs / 1000 - 0.1;
+          cutAt = Math.max(v.duration * 0.8, began);
+          restart();
+        }
+      } catch {
+        learn = false; // tainted canvas / read error → stop learning, keep looping
       }
     };
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      v.removeEventListener("loadeddata", ensurePlaying);
+      v.removeEventListener("canplay", ensurePlaying);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   return (
