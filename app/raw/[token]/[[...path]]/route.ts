@@ -71,16 +71,22 @@ function rewriteHtml(html: string, base: string): string {
 }
 
 function shell(title: string, inner: string, status = 200): NextResponse {
+  // Matches the portal's glass look (acid-edged frosted card on near-black with
+  // a faint masked grid + ambient glow) so these in-iframe states feel branded.
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex"/>
 <title>${title}</title>
 <style>
   *{box-sizing:border-box;margin:0}html,body{height:100%}
-  body{background:#0a0a0a;color:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;display:grid;place-items:center;padding:24px;text-align:center}
-  .box{border:2px solid #fff;box-shadow:8px 8px 0 #ccff00;padding:44px 34px;max-width:560px}
-  .tag{display:inline-block;background:#ccff00;color:#0a0a0a;font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:11px;padding:6px 10px;margin-bottom:22px}
-  h1{font-size:clamp(1.4rem,5vw,2.2rem);line-height:1.12;text-transform:uppercase;letter-spacing:-.01em;margin-bottom:16px}
-  p{color:#9a9a9a;font-size:14px;line-height:1.65}a{color:#ccff00;text-decoration:none;border-bottom:2px solid #ccff00}
+  body{position:relative;background:#070707;color:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;display:grid;place-items:center;padding:24px;text-align:center;overflow:hidden}
+  body::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(204,255,0,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(204,255,0,.05) 1px,transparent 1px);background-size:38px 38px;-webkit-mask-image:radial-gradient(ellipse 80% 80% at 50% 40%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse 80% 80% at 50% 40%,#000 30%,transparent 75%)}
+  body::after{content:"";position:absolute;top:18%;left:30%;width:340px;height:340px;background:rgba(204,255,0,.07);border-radius:50%;filter:blur(64px);pointer-events:none}
+  .box{position:relative;z-index:1;background:rgba(255,255,255,.04);backdrop-filter:blur(22px) saturate(135%);-webkit-backdrop-filter:blur(22px) saturate(135%);border:1px solid rgba(204,255,0,.14);border-radius:24px;box-shadow:0 24px 70px -24px rgba(0,0,0,.82);padding:46px 36px;max-width:560px;animation:in .5s ease-out both}
+  @keyframes in{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  .tag{display:inline-block;background:rgba(204,255,0,.1);color:rgba(204,255,0,.9);border:1px solid rgba(204,255,0,.25);border-radius:999px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;font-size:10px;padding:6px 12px;margin-bottom:22px}
+  h1{font-size:clamp(1.4rem,5vw,2.1rem);line-height:1.14;letter-spacing:-.01em;margin-bottom:14px;font-family:system-ui,-apple-system,sans-serif;font-weight:800}
+  p{color:#9a9a9a;font-size:14px;line-height:1.65}a{color:#ccff00;text-decoration:none;border-bottom:1px solid rgba(204,255,0,.5)}a:hover{border-bottom-color:#ccff00}
+  @media (prefers-reduced-motion:reduce){.box{animation:none}}
 </style></head><body><div class="box">${inner}</div></body></html>`;
   return new NextResponse(html, {
     status,

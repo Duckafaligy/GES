@@ -154,7 +154,7 @@ function PasswordGate({ onAuthed }: { onAuthed: (t: string) => void }) {
 
   return (
     <div className="min-h-screen grid place-items-center px-6">
-      <form onSubmit={submit} className="hard bg-[#0a0a0a] w-full max-w-sm p-8">
+      <form onSubmit={submit} className="hard bg-[#0a0a0a] w-full max-w-sm p-8 shadow-[8px_8px_0_0_var(--acid)] entry-d0">
         <div className="flex items-center gap-3 mb-7">
           <div className="w-10 h-10 bg-[var(--acid)] text-[#0a0a0a] grid place-items-center font-black text-lg border-2 border-[var(--line)]">G</div>
           <div className="eyebrow text-[var(--muted)] leading-tight">GES<br />Internal</div>
@@ -237,10 +237,11 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
     <div>
       {reveal && <CodeReveal label={reveal.label} code={reveal.code} onClose={() => setReveal(null)} />}
       {/* top bar */}
-      <div className="sticky top-0 z-20 bg-[#0a0a0a] border-b-2 border-[var(--line)]">
+      <div className="sticky top-0 z-20 bg-[#0a0a0a]/90 backdrop-blur-md border-b-2 border-[var(--line)]">
+        <div className="h-[3px] bg-[var(--acid)]" />
         <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[var(--acid)] text-[#0a0a0a] grid place-items-center font-black border-2 border-[var(--line)]">G</div>
+            <div className="w-9 h-9 bg-[var(--acid)] text-[#0a0a0a] grid place-items-center font-black border-2 border-[var(--line)] shadow-[3px_3px_0_0_var(--line)]">G</div>
             <div>
               <div className="eyebrow text-[var(--muted)]">GES Internal</div>
               <div className="font-extrabold uppercase tracking-tight text-sm leading-none mt-0.5">Developer Dashboard</div>
@@ -259,22 +260,23 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
         )}
 
         {/* stat strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-t-2 border-l-2 border-[var(--line)] mb-9">
-          <Stat n={clients.length} label="Clients" />
-          <Stat n={live} label="Live previews" />
-          <Stat n={clients.filter((c) => (c.view_count ?? 0) > 0).length} label="Viewed by client" />
-          <Stat n={clients.reduce((sum, c) => sum + (c.view_count ?? 0), 0)} label="Total views" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-t-2 border-l-2 border-[var(--line)] mb-9 entry-d0">
+          <Stat i="01" n={clients.length} label="Clients" />
+          <Stat i="02" n={live} label="Live previews" />
+          <Stat i="03" n={clients.filter((c) => (c.view_count ?? 0) > 0).length} label="Viewed by client" />
+          <Stat i="04" n={clients.reduce((sum, c) => sum + (c.view_count ?? 0), 0)} label="Total views" />
         </div>
 
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
         <UploadPreview clients={clients} api={api} onDone={ok} onErr={err} />
 
-        <section className="mt-10">
+        <section className="mt-10 entry-d3">
           <div className="flex items-center gap-4 mb-4 border-b-2 border-[var(--line)] pb-3">
+            <span className="eyebrow text-[var(--acid)]">03</span>
             <span className="eyebrow">Clients</span>
             {clients.length > 0 && <span className="mono text-[10px] text-[var(--muted)]">{filtered.length}/{clients.length}</span>}
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
-            <button onClick={refresh} className="eyebrow text-[var(--muted)] hover:text-white">Refresh</button>
+            <button onClick={refresh} className="eyebrow text-[var(--muted)] hover:text-white transition-colors">Refresh</button>
           </div>
 
           {clients.length > 3 && (
@@ -333,10 +335,11 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
   );
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
+function Stat({ i, n, label }: { i: string; n: number; label: string }) {
   return (
-    <div className="border-b-2 border-r-2 border-[var(--line)] p-4">
-      <div className="display text-3xl leading-none text-[var(--acid)]">{n}</div>
+    <div className="border-b-2 border-r-2 border-[var(--line)] p-4 relative group">
+      <span className="absolute top-2 right-2.5 mono text-[9px] text-[var(--amber)] opacity-70">{i}</span>
+      <div className="display text-3xl leading-none text-[var(--acid)] group-hover:translate-x-0.5 transition-transform">{n}</div>
       <div className="eyebrow text-[var(--muted)] mt-2">{label}</div>
     </div>
   );
@@ -381,8 +384,12 @@ function AddClient({
   }
 
   return (
-    <section className="hard bg-[#0a0a0a] p-6 mb-6">
-      <div className="eyebrow text-[var(--muted)] mb-4">Add Client</div>
+    <section className="hard hover-acid bg-[#0a0a0a] p-6 mb-6 entry-d1">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="eyebrow text-[var(--acid)]">01</span>
+        <span className="eyebrow text-[var(--muted)]">Add Client</span>
+        <span className="flex-1 h-[2px] bg-[var(--line)] opacity-15" />
+      </div>
       <form onSubmit={submit} className="grid sm:grid-cols-2 gap-3">
         <Field label="Business name *" value={name} onChange={setName} placeholder="Blooms & Co." />
         <Field label="Custom slug (optional)" value={slug} onChange={setSlug} placeholder="blooms-florist" mono />
@@ -494,8 +501,12 @@ function UploadPreview({
   const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <section className="hard bg-[#0a0a0a] p-6 mb-6">
-      <div className="eyebrow text-[var(--muted)] mb-2">Upload Preview Build</div>
+    <section className="hard hover-acid bg-[#0a0a0a] p-6 mb-6 entry-d2">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="eyebrow text-[var(--acid)]">02</span>
+        <span className="eyebrow text-[var(--muted)]">Upload Preview Build</span>
+        <span className="flex-1 h-[2px] bg-[var(--line)] opacity-15" />
+      </div>
       <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
         Build the site locally first (<span className="text-white">npm install</span> → <span className="text-white">npm run build</span>),
         then drop the <strong className="text-white">built output</strong> folder here — plain HTML, or
@@ -524,10 +535,10 @@ function UploadPreview({
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={onDrop}
-        className={`border-2 border-dashed cursor-pointer grid place-items-center text-center py-10 px-4 transition-colors ${drag ? "border-[var(--acid)] bg-[var(--acid)]/10" : "border-[var(--line)]/50 hover:border-[var(--line)]"}`}
+        className={`border-2 border-dashed cursor-pointer grid place-items-center text-center py-10 px-4 transition-all duration-150 ${drag ? "border-[var(--acid)] bg-[var(--acid)]/10 scale-[1.01]" : "border-[var(--line)]/50 hover:border-[var(--acid)]/60 hover:bg-white/[0.02]"}`}
       >
         <div>
-          <div className="mono text-sm font-bold">{drag ? "Drop the folder…" : "Drop build folder here"}</div>
+          <div className={`mono text-sm font-bold transition-colors ${drag ? "text-[var(--acid)]" : ""}`}>{drag ? "Drop the folder…" : "Drop build folder here"}</div>
           <div className="eyebrow text-[var(--muted)] mt-2">or click to choose</div>
         </div>
       </div>
@@ -666,7 +677,7 @@ function ClientCard({
   const views = c.view_count ?? 0;
 
   return (
-    <div className={`hard bg-[#0a0a0a] p-5 flex flex-col gap-4 ${busy ? "opacity-50" : ""}`}>
+    <div className={`hard hover-acid bg-[#0a0a0a] p-5 flex flex-col gap-4 transition-opacity ${busy ? "opacity-50" : ""}`}>
       <div className="flex flex-col md:flex-row md:items-center gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2.5 flex-wrap">
@@ -697,7 +708,7 @@ function ClientCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 text-[11px] mono [&>button]:text-center">
+      <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 text-[11px] mono [&>button]:text-center [&>button]:transition-colors">
         <button
           onClick={view}
           disabled={!c.preview_ready}
@@ -906,8 +917,8 @@ function CodeReveal({ label, code, onClose }: { label: string; code: string; onC
     });
   }
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 grid place-items-center px-5" onClick={onClose}>
-      <div className="hard bg-[#0a0a0a] w-full max-w-lg p-7" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm grid place-items-center px-5" onClick={onClose}>
+      <div className="hard bg-[#0a0a0a] w-full max-w-lg p-7 shadow-[8px_8px_0_0_var(--acid)] entry-d0" onClick={(e) => e.stopPropagation()}>
         <div className="eyebrow text-[var(--acid)] mb-2">Access code · {label}</div>
         <h2 className="display text-2xl mb-3">Copy this now</h2>
         <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">

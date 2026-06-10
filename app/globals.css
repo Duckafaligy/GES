@@ -82,6 +82,11 @@
 .lift { transition: transform 0.14s ease, box-shadow 0.14s ease; }
 .lift:hover { transform: translate(-3px, -3px); box-shadow: 10px 10px 0 0 var(--line); }
 
+/* Acid-glow hover for dark internal surfaces (dashboard cards):
+   the offset shadow flips to the brand acid on hover. */
+.hover-acid { transition: box-shadow 0.16s ease, border-color 0.16s ease; }
+.hover-acid:hover { box-shadow: 6px 6px 0 0 var(--acid); }
+
 /* ── Mono label / eyebrow ── */
 .mono { font-family: var(--font-mono), ui-monospace, monospace; }
 .eyebrow {
