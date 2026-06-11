@@ -268,11 +268,10 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
         </div>
 
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
-        <UploadPreview clients={clients} api={api} onDone={ok} onErr={err} />
 
         <section className="mt-10 entry-d3">
           <div className="flex items-center gap-4 mb-4 border-b-2 border-[var(--line)] pb-3">
-            <span className="eyebrow text-[var(--acid)]">03</span>
+            <span className="eyebrow text-[var(--acid)]">02</span>
             <span className="eyebrow">Clients</span>
             {clients.length > 0 && <span className="mono text-[10px] text-[var(--muted)]">{filtered.length}/{clients.length}</span>}
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
@@ -291,7 +290,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
             </div>
           )}
 
-          {loading ? (
+          {loading && clients.length === 0 ? (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="hard bg-[#0a0a0a] p-5 flex items-center gap-4">
@@ -325,7 +324,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
           ) : (
             <div className="space-y-3">
               {filtered.map((c) => (
-                <ClientCard key={c.id} c={c} api={api} onChange={refresh} onErr={err} onReveal={showCode} />
+                <ClientCard key={c.id} c={c} api={api} onChange={refresh} onOk={ok} onErr={err} onReveal={showCode} />
               ))}
             </div>
           )}
@@ -406,16 +405,16 @@ function AddClient({
   );
 }
 
-/* ── upload preview ── */
-function UploadPreview({
-  clients, api, onDone, onErr,
+/* ── per-client build uploader (drop folder → replaces this client's build) ── */
+function ClientUploader({
+  slug, previewReady, api, onDone, onErr,
 }: {
-  clients: DevClient[];
+  slug: string;
+  previewReady: boolean;
   api: (p: string, o?: RequestInit) => Promise<Response>;
   onDone: (m: string) => void;
   onErr: (m: string) => void;
 }) {
-  const [slug, setSlug] = useState("");
   const [picked, setPicked] = useState<PickedFile[]>([]);
   const [skipped, setSkipped] = useState(0);
   const [oversize, setOversize] = useState<string[]>([]);
@@ -456,13 +455,8 @@ function UploadPreview({
   }
 
   async function upload() {
-    if (!slug) { onErr("Pick a client to upload to."); return; }
     if (!hasIndex) { onErr("No index.html at the build root — select the built output folder (dist/ or out/)."); return; }
-
-    // Clean replace: a new build should REPLACE the old one, not merge with it
-    // (otherwise orphaned files from the previous build linger in storage).
-    const target = clients.find((c) => c.slug === slug);
-    if (target?.preview_ready &&
+    if (previewReady &&
         !confirm(`"${slug}" already has an uploaded build. Replace it?\n\nThe old files are removed first, so nothing stale is left behind.`)) {
       return;
     }
@@ -501,33 +495,13 @@ function UploadPreview({
   const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <section className="hard hover-acid bg-[#0a0a0a] p-6 mb-6 entry-d2">
-      <div className="flex items-center gap-3 mb-2">
-        <span className="eyebrow text-[var(--acid)]">02</span>
-        <span className="eyebrow text-[var(--muted)]">Upload Preview Build</span>
-        <span className="flex-1 h-[2px] bg-[var(--line)] opacity-15" />
-      </div>
-      <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
-        Build the site locally first (<span className="text-white">npm install</span> → <span className="text-white">npm run build</span>),
-        then drop the <strong className="text-white">built output</strong> folder here — plain HTML, or
-        <span className="text-[var(--acid)]"> dist/</span> /<span className="text-[var(--acid)]"> out/</span>. Don&apos;t upload the
-        source project: <span className="text-white">node_modules</span> / .git / .next are skipped automatically and never need uploading.
-        Must contain an index.html. <span className="text-white">Re-uploading replaces</span> the client&apos;s previous build — old files are cleared first, so nothing stale is left behind.
+    <div>
+      <div className="eyebrow text-[var(--muted)] mb-2">{previewReady ? "Replace Build" : "Upload Build"}</div>
+      <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-3">
+        Drop the <strong className="text-white">built output</strong> folder (plain HTML, or
+        <span className="text-[var(--acid)]"> dist/</span> /<span className="text-[var(--acid)]"> out/</span>) — must contain an index.html.
+        <span className="text-white"> node_modules</span> / .git / .next are skipped. Re-uploading replaces this client&apos;s build.
       </p>
-
-      <label className="block mb-3">
-        <span className="eyebrow text-[var(--muted)] mb-2 block">Target client</span>
-        <select
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          className="w-full bg-[#0a0a0a] border-2 border-[var(--line)] px-3 py-3 mono text-sm focus:outline-none focus:border-[var(--acid)]"
-        >
-          <option value="">— choose —</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.slug}>{c.name} ({c.slug})</option>
-          ))}
-        </select>
-      </label>
 
       <input ref={folderInput} type="file" multiple onChange={onPick} className="hidden" />
       <div
@@ -535,7 +509,7 @@ function UploadPreview({
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={onDrop}
-        className={`border-2 border-dashed cursor-pointer grid place-items-center text-center py-10 px-4 transition-all duration-150 ${drag ? "border-[var(--acid)] bg-[var(--acid)]/10 scale-[1.01]" : "border-[var(--line)]/50 hover:border-[var(--acid)]/60 hover:bg-white/[0.02]"}`}
+        className={`border-2 border-dashed cursor-pointer grid place-items-center text-center py-7 px-4 transition-all duration-150 ${drag ? "border-[var(--acid)] bg-[var(--acid)]/10 scale-[1.01]" : "border-[var(--line)]/50 hover:border-[var(--acid)]/60 hover:bg-white/[0.02]"}`}
       >
         <div>
           <div className={`mono text-sm font-bold transition-colors ${drag ? "text-[var(--acid)]" : ""}`}>{drag ? "Drop the folder…" : "Drop build folder here"}</div>
@@ -544,43 +518,110 @@ function UploadPreview({
       </div>
 
       {picked.length > 0 && (
-        <div className="mt-4 mono text-[11px]">
+        <div className="mt-3 mono text-[11px]">
           <div className="text-white">
             {picked.length} files ready{skipped > 0 && <span className="text-[var(--muted)]"> · {skipped} junk skipped</span>}{" "}
             {hasIndex ? <span className="text-[var(--acid)]">· index.html ✓</span> : <span className="text-red-400">· no index.html ✗</span>}
           </div>
           {oversize.length > 0 && (
             <div className="text-amber-400 mt-1">
-              ⚠ {oversize.length} file(s) over 4MB may fail on Vercel (per-file upload limit): {oversize.slice(0, 3).join(", ")}{oversize.length > 3 ? "…" : ""}. Compress large media or host it elsewhere.
+              ⚠ {oversize.length} file(s) over 4MB may fail on Vercel: {oversize.slice(0, 3).join(", ")}{oversize.length > 3 ? "…" : ""}.
             </div>
           )}
-          <div className="text-[var(--muted)] mt-1 max-h-24 overflow-y-auto border-2 border-[var(--line)]/40 p-2">
-            {picked.slice(0, 50).map((p) => <div key={p.rel}>{p.rel}</div>)}
-            {picked.length > 50 && <div>…and {picked.length - 50} more</div>}
-          </div>
-
           {progress && (
             <div className="h-3 border-2 border-[var(--line)] mt-3">
               <div className="h-full bg-[var(--acid)] transition-all" style={{ width: `${pct}%` }} />
             </div>
           )}
-
-          <button onClick={upload} disabled={!!progress || !slug || !hasIndex} className="btn-brut mt-4 disabled:opacity-50">
-            {progress ? `Uploading ${progress.done}/${progress.total}…` : `Upload to ${slug || "…"}`}
+          <button onClick={upload} disabled={!!progress || !hasIndex} className="btn-brut mt-3 text-[11px] py-2.5 px-4 disabled:opacity-50">
+            {progress ? `Uploading ${progress.done}/${progress.total}…` : `Upload to ${slug}`}
           </button>
         </div>
       )}
-    </section>
+    </div>
+  );
+}
+
+/* ── live preview thumbnail — a scaled, non-interactive "small window" of the
+   client's built site (dev view via a minted preview token), like Vercel's
+   deployment snippet. Click to open it full-size. ── */
+function ClientPreview({
+  slug, previewReady, api,
+}: {
+  slug: string;
+  previewReady: boolean;
+  api: (p: string, o?: RequestInit) => Promise<Response>;
+}) {
+  const [token, setToken] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!previewReady) return;
+    let cancelled = false;
+    api(`/api/dev/preview-token?slug=${encodeURIComponent(slug)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) { if (d.token) setToken(d.token); else setErr(d.error || "Preview unavailable."); } })
+      .catch((e) => { if (!cancelled) setErr((e as Error).message); });
+    return () => { cancelled = true; };
+  }, [slug, previewReady, api]);
+
+  if (!previewReady) {
+    return (
+      <div>
+        <div className="eyebrow text-[var(--muted)] mb-2">Preview</div>
+        <div className="border-2 border-dashed border-[var(--line)]/40 grid place-items-center text-center py-8 mono text-[11px] text-[var(--muted)]">
+          No build uploaded yet — drop one below and it&apos;ll preview here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="eyebrow text-[var(--muted)]">Preview <span className="text-[var(--acid)]">· dev view</span></span>
+        {token && (
+          <button onClick={() => window.open(`/raw/${token}`, "_blank", "noopener,noreferrer")} className="eyebrow text-[var(--muted)] hover:text-white">
+            Open full ↗
+          </button>
+        )}
+      </div>
+      <button
+        onClick={() => token && window.open(`/raw/${token}`, "_blank", "noopener,noreferrer")}
+        className="hard block w-full max-w-[460px] overflow-hidden bg-white relative group cursor-pointer"
+        style={{ height: 288 }}
+        title="Open full preview"
+        aria-label="Open full preview"
+      >
+        {token ? (
+          <iframe
+            src={`/raw/${token}`}
+            title={`${slug} preview`}
+            tabIndex={-1}
+            scrolling="no"
+            sandbox="allow-scripts"
+            className="absolute top-0 left-0 origin-top-left pointer-events-none border-0"
+            style={{ width: 1280, height: 800, transform: "scale(0.359)" }}
+          />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center mono text-[11px] text-[var(--muted)]">
+            {err ?? "Loading preview…"}
+          </div>
+        )}
+        <span className="absolute inset-0 bg-[var(--acid)]/0 group-hover:bg-[var(--acid)]/5 transition-colors" />
+      </button>
+    </div>
   );
 }
 
 /* ── client card ── */
 function ClientCard({
-  c, api, onChange, onErr, onReveal,
+  c, api, onChange, onOk, onErr, onReveal,
 }: {
   c: DevClient;
   api: (p: string, o?: RequestInit) => Promise<Response>;
   onChange: () => void;
+  onOk: (m: string) => void;
   onErr: (m: string) => void;
   onReveal: (label: string, code: string) => void;
 }) {
@@ -741,16 +782,30 @@ function ClientCard({
           onClick={() => setOpen((v) => !v)}
           className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10 inline-flex items-center justify-center gap-1"
         >
-          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Analytics
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Manage
         </button>
       </div>
       </div>
 
       {open && (
-        <>
-          <AccessCodeRow code={c.access_code} />
-          <ClientAnalytics slug={c.slug} api={api} />
-        </>
+        <div className="border-t-2 border-[var(--line)]/40 pt-5 grid lg:grid-cols-2 gap-6">
+          {/* left: preview window + access code */}
+          <div className="space-y-5">
+            <ClientPreview slug={c.slug} previewReady={c.preview_ready} api={api} />
+            <AccessCodeRow code={c.access_code} />
+          </div>
+          {/* right: upload/replace build + analytics */}
+          <div className="space-y-5">
+            <ClientUploader
+              slug={c.slug}
+              previewReady={c.preview_ready}
+              api={api}
+              onDone={onOk}
+              onErr={onErr}
+            />
+            <ClientAnalytics slug={c.slug} api={api} />
+          </div>
+        </div>
       )}
     </div>
   );
