@@ -35,6 +35,21 @@
     font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Faint film grain over everything — adds tactile depth so the flat
+     black/white surfaces don't read as a plain template. Sits on top, never
+     intercepts clicks, and is invisible to print/reduced-data. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
   }
 
   /* Keyboard focus — a crisp acid ring on interactive elements (mouse clicks
@@ -68,10 +83,10 @@
 /* ── Section theme contexts ──
    Each <section> chooses one. Children read --fg / --bg / --line / --muted,
    so the same brutalist primitives invert automatically on dark blocks. */
-.sec-light { --bg: var(--paper); --fg: var(--ink);   --line: var(--ink);   --muted: #5f5f5f; background: var(--bg); color: var(--fg); }
-.sec-bone  { --bg: var(--bone);  --fg: var(--ink);   --line: var(--ink);   --muted: #5f5f5f; background: var(--bg); color: var(--fg); }
-.sec-dark  { --bg: var(--ink);   --fg: var(--paper); --line: var(--paper); --muted: #9a9a9a; background: var(--bg); color: var(--fg); }
-.sec-acid  { --bg: var(--acid);  --fg: var(--ink);   --line: var(--ink);   --muted: #44480f; background: var(--bg); color: var(--fg); }
+.sec-light { --bg: var(--paper); --fg: var(--ink);   --line: var(--ink);   --muted: #4c4c4c; background: var(--bg); color: var(--fg); }
+.sec-bone  { --bg: var(--bone);  --fg: var(--ink);   --line: var(--ink);   --muted: #494941; background: var(--bg); color: var(--fg); }
+.sec-dark  { --bg: var(--ink);   --fg: var(--paper); --line: var(--paper); --muted: #b6b6b6; background: var(--bg); color: var(--fg); }
+.sec-acid  { --bg: var(--acid);  --fg: var(--ink);   --line: var(--ink);   --muted: #3d400d; background: var(--bg); color: var(--fg); }
 
 /* ── Hard-edged surfaces ── */
 .hard     { border: 2px solid var(--line); box-shadow: 6px 6px 0 0 var(--line); }
@@ -86,6 +101,26 @@
    the offset shadow flips to the brand acid on hover. */
 .hover-acid { transition: box-shadow 0.16s ease, border-color 0.16s ease; }
 .hover-acid:hover { box-shadow: 6px 6px 0 0 var(--acid); }
+
+/* Soft ambient acid glow bleeding from behind an element (depth on dark blocks).
+   Lives in a -z layer so it never washes out the text on top. */
+.glow-acid { position: relative; isolation: isolate; }
+.glow-acid::before,
+.glow-amber::before {
+  content: "";
+  position: absolute;
+  left: -6%;
+  top: 50%;
+  width: 60%;
+  height: 150%;
+  transform: translateY(-50%);
+  filter: blur(46px);
+  z-index: -1;
+  pointer-events: none;
+}
+.glow-acid::before  { background: radial-gradient(closest-side, color-mix(in srgb, var(--acid) 20%, transparent), transparent 70%); }
+.glow-amber { position: relative; isolation: isolate; }
+.glow-amber::before { background: radial-gradient(closest-side, color-mix(in srgb, var(--amber) 22%, transparent), transparent 70%); }
 
 /* ── Mono label / eyebrow ── */
 .mono { font-family: var(--font-mono), ui-monospace, monospace; }

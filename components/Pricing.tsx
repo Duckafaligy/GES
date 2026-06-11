@@ -89,7 +89,7 @@ export default function Pricing() {
           transition={{ duration: 0.6 }}
           className="mb-14 max-w-3xl"
         >
-          <h2 className="display text-[clamp(2.2rem,5.5vw,4.5rem)] mb-5">
+          <h2 className="glow-acid display text-[clamp(2.2rem,5.5vw,4.5rem)] mb-5">
             Own The Edge,{" "}
             <span className="inline-block bg-[var(--acid)] text-[#0a0a0a] px-2">
               Not Just A Site
