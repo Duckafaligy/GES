@@ -9,7 +9,7 @@
 :root {
   --ink: #0a0a0a;
   --paper: #ffffff;
-  --bone: #efeee7;       /* warm off-white panel */
+  --bone: #e8dec8;       /* warm beige / sand panel (clearly not white) */
   --acid: #ccff00;       /* primary accent — the brand pop (logo, hero, highlights) */
   --acid-deep: #aee000;
   --amber: #e0a11e;      /* secondary accent — warm, used sparingly (eyebrows, stat ticks) */
