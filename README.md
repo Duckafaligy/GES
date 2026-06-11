@@ -264,6 +264,10 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - **Bookings land in the dashboard.** A new **Bookings** panel shows every lead
   (date/time, name, email, business, notes) with a "new" count, mark-done and
   delete. New routes `app/api/book` (public) and `app/api/dev/bookings` (gated).
+- **Email notification (Resend).** When the `RESEND_API_KEY` + `BOOKING_NOTIFY_EMAIL`
+  env vars are set, every booking emails you the lead's details + an `.ics`
+  attachment (`lib/email.ts`, one fetch, no SDK) — no domain verification needed
+  to email yourself. Best-effort, never blocks the booking.
 - **Calendar everywhere.** Confirmation offers "Add to Google Calendar" + an
   `.ics` (Apple/Outlook) with a reminder, GES added as a guest. And if the
   Google service-account env vars are set (`GOOGLE_SERVICE_ACCOUNT_EMAIL` /
