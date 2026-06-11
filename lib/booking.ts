@@ -51,3 +51,73 @@ export function fmtTime(t: string): string {
   const hr = h % 12 === 0 ? 12 : h % 12;
   return `${hr}:${pad(m)} ${ampm}`;
 }
+
+// ── Calendar export (Google Calendar link + .ics) ──────────────────────────
+// GES's email — appears as the meeting guest/organizer so both sides connect.
+export const GES_CONTACT_EMAIL = "contact@ges.ca";
+export const MEETING_MINUTES = 30;
+const TZ = "America/New_York"; // slots are Eastern
+
+/** Convert an ET wall-clock slot (date + "HH:MM") to the absolute UTC instant,
+    accounting for EST/EDT via the Intl timezone database. */
+export function etToUtc(ymd: string, hhmm: string): Date {
+  const [Y, M, D] = ymd.split("-").map(Number);
+  const [h, m] = hhmm.split(":").map(Number);
+  const guess = Date.UTC(Y, M - 1, D, h, m, 0);
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p: Record<string, string> = {};
+  for (const part of dtf.formatToParts(new Date(guess))) p[part.type] = part.value;
+  const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +(p.hour === "24" ? "0" : p.hour), +p.minute, +p.second);
+  const offset = asUTC - guess; // TZ offset from UTC at that instant
+  return new Date(guess - offset);
+}
+
+/** Compact UTC stamp for calendar URLs / ICS: YYYYMMDDTHHMMSSZ */
+function stamp(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function range(ymd: string, hhmm: string) {
+  const start = etToUtc(ymd, hhmm);
+  const end = new Date(start.getTime() + MEETING_MINUTES * 60000);
+  return { start, end };
+}
+
+/** Pre-filled "Add to Google Calendar" URL (GES added as a guest). */
+export function googleCalUrl(ymd: string, hhmm: string, notes?: string): string {
+  const { start, end } = range(ymd, hhmm);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: "GES — Discovery Call",
+    dates: `${stamp(start)}/${stamp(end)}`,
+    details: `Your 30-min discovery call with GES (Global E-Commerce Saviours).${notes ? `\n\nWhat you want built: ${notes}` : ""}\n\nQuestions? ${GES_CONTACT_EMAIL}`,
+    add: GES_CONTACT_EMAIL,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/** A downloadable .ics (Apple Calendar / Outlook / any client) with a reminder. */
+export function buildIcs(name: string, email: string, ymd: string, hhmm: string, notes?: string): string {
+  const { start, end } = range(ymd, hhmm);
+  const esc = (s: string) => (s || "").replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  const uid = `${stamp(start)}-${Math.random().toString(36).slice(2)}@ges`;
+  return [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//GES//Booking//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${stamp(new Date())}`,
+    `DTSTART:${stamp(start)}`,
+    `DTEND:${stamp(end)}`,
+    "SUMMARY:GES — Discovery Call",
+    `DESCRIPTION:${esc(`Your 30-min discovery call with GES.${notes ? `\nWhat you want built: ${notes}` : ""}`)}`,
+    `ORGANIZER;CN=GES:mailto:${GES_CONTACT_EMAIL}`,
+    `ATTENDEE;CN=${esc(name)};RSVP=TRUE:mailto:${email}`,
+    `ATTENDEE;CN=GES:mailto:${GES_CONTACT_EMAIL}`,
+    "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", "DESCRIPTION:GES Discovery Call in 30 min", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+}

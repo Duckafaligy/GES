@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, ArrowLeft, ArrowRight, Check, CalendarDays, Clock } from "lucide-react";
+import { X, ArrowLeft, ArrowRight, Check, CalendarDays, Clock, Download } from "lucide-react";
 import {
   SLOT_TIMES,
   upcomingWeekdays,
   fmtDateLong,
   fmtDateFull,
   fmtTime,
+  googleCalUrl,
+  buildIcs,
 } from "@/lib/booking";
 
 type Step = "date" | "time" | "details" | "done";
@@ -78,6 +80,15 @@ export default function BookCall() {
 
   const close = () => setOpen(false);
   const canSubmit = form.name.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+
+  function downloadIcs() {
+    const ics = buildIcs(form.name, form.email, date, time, form.notes);
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "ges-discovery-call.ics";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <AnimatePresence>
@@ -215,8 +226,27 @@ export default function BookCall() {
                   <h3 className="font-extrabold uppercase tracking-tight text-xl mb-2">You&apos;re booked!</h3>
                   <p className="text-gray-300 text-sm leading-relaxed mb-1">{fmtDateFull(date)}</p>
                   <p className="text-[#ccff00] font-mono font-bold mb-5">{fmtTime(time)} ET</p>
-                  <p className="text-gray-400 text-xs leading-relaxed mb-6">
-                    We&apos;ll reach out at <span className="text-white">{form.email}</span> to confirm. Talk soon!
+                  <p className="text-gray-400 text-xs leading-relaxed mb-5">
+                    Add it to your calendar so you <span className="text-white">and GES</span> both get a reminder.
+                  </p>
+                  <div className="flex flex-col gap-2.5 mb-5">
+                    <a
+                      href={googleCalUrl(date, time, form.notes)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 bg-[#ccff00] text-[#0a0a0a] font-mono font-bold uppercase text-xs tracking-[0.08em] px-6 py-3.5 border-2 border-white hover:gap-3 transition-all"
+                    >
+                      <CalendarDays size={15} /> Add to Google Calendar
+                    </a>
+                    <button
+                      onClick={downloadIcs}
+                      className="inline-flex items-center justify-center gap-2 font-mono font-bold uppercase text-xs tracking-[0.08em] px-6 py-3 border-2 border-white/40 hover:border-white transition-colors"
+                    >
+                      <Download size={14} /> Apple / Outlook (.ics)
+                    </button>
+                  </div>
+                  <p className="text-gray-500 text-[11px] leading-relaxed mb-5">
+                    We&apos;ll also reach out at <span className="text-gray-300">{form.email}</span> to confirm.
                   </p>
                   <button onClick={close} className="font-mono text-xs font-bold uppercase tracking-[0.08em] border-2 border-white px-6 py-3 hover:bg-white hover:text-[#0a0a0a] transition-colors">
                     Done
