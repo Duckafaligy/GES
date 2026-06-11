@@ -75,13 +75,13 @@ export default function ThreeDFeatures() {
   const videoSrc = tabs.find((t) => t.video)?.video;
 
   return (
-    <section id="3d-features" className="sec-bone py-24 border-t-2 border-[var(--line)]">
+    <section id="3d-features" className="sec-dark py-24 border-t-2 border-[var(--line)]">
       <div className="max-w-7xl mx-auto px-5">
         {/* Section header bar */}
         <div className="flex items-center gap-4 mb-12 border-b-2 border-[var(--line)] pb-4">
           <span className="eyebrow">04 / 3D & Automation</span>
           <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
-          <span className="eyebrow text-[var(--amber-deep)]">Capabilities</span>
+          <span className="eyebrow text-[var(--amber)]">Capabilities</span>
         </div>
 
         {/* Heading */}
@@ -94,7 +94,7 @@ export default function ThreeDFeatures() {
         >
           <h2 className="display text-[clamp(2.2rem,5.5vw,4.5rem)] mb-5">
             Products That Feel{" "}
-            <span className="inline-block bg-[var(--acid)] px-2">Real Online</span>
+            <span className="inline-block bg-[var(--acid)] text-[#0a0a0a] px-2">Real Online</span>
           </h2>
           <p className="text-[var(--muted)] text-base md:text-lg leading-relaxed">
             From hyper-realistic 360° models to cinematic scroll animations —
@@ -132,7 +132,7 @@ export default function ThreeDFeatures() {
           >
             <div className="grid md:grid-cols-2 gap-9 items-start">
               {/* Left — detached text card */}
-              <div className="hard bg-[var(--paper)] p-7 md:p-9">
+              <div className="hard bg-[var(--bg)] p-7 md:p-9">
                 <div className="eyebrow text-[var(--muted)] mb-3">{current.tagline}</div>
                 <h3 className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight mb-3">
                   {current.label}
@@ -189,10 +189,15 @@ export default function ThreeDFeatures() {
             shown only while the tier that ships it is active. */}
         {videoSrc && (
           <div className={current.video ? "mt-9 pt-9 border-t-2 border-[var(--line)]" : "hidden"}>
-            {/* 184 = exactly one full revolution of the source clip; frames 185-192
-                retrace the start (over-rotation), so we loop 1-184 for a seamless
-                wrap with no skip. Drag covers the full 360° either way. */}
-            <ProductViewer frameDir="/product-360" frameCount={184} />
+            {/* The turntable frames are shot on a white studio backdrop, so on this
+                dark section we frame it as a deliberate, contained product panel
+                (hard border + offset shadow, capped width) rather than a full-bleed
+                white bleed.
+                184 = exactly one full revolution of the source clip; frames 185-192
+                retrace the start, so we loop 1-184 for a seamless wrap. */}
+            <div className="max-w-3xl mx-auto">
+              <ProductViewer frameDir="/product-360" frameCount={184} />
+            </div>
           </div>
         )}
       </div>

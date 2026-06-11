@@ -4,13 +4,6 @@ import { useRef, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, ArrowDown } from "lucide-react";
 
-const stats = [
-  { value: "100%", label: "Client Satisfaction" },
-  { value: "3×", label: "Avg Conversion Lift" },
-  { value: "21d", label: "Deposit → Live" },
-  { value: "3D", label: "Product Rendering" },
-];
-
 export default function VideoHero() {
   const ref = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -175,19 +168,6 @@ export default function VideoHero() {
           <a href="#services">
             <button className="btn-ghost">What We Build</button>
           </a>
-        </div>
-
-        {/* Stat cells */}
-        <div className="entry-d4 grid grid-cols-2 md:grid-cols-4 border-t-2 border-l-2 border-current mt-12 max-w-3xl">
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="border-b-2 border-r-2 border-current p-5 backdrop-blur-[2px]"
-            >
-              <div className="display text-3xl md:text-4xl">{s.value}</div>
-              <div className="eyebrow mt-2 text-[var(--muted)]">{s.label}</div>
-            </div>
-          ))}
         </div>
       </motion.div>
 
