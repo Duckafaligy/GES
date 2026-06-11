@@ -16,6 +16,39 @@ export function emailConfigured(): boolean {
   return !!(process.env.RESEND_API_KEY && process.env.BOOKING_NOTIFY_EMAIL);
 }
 
+/** Dev diagnostic: report config + attempt a live test send, returning Resend's
+    actual status/body so misconfig is obvious. Never throws. */
+export async function emailDiagnostics(): Promise<Record<string, unknown>> {
+  const key = process.env.RESEND_API_KEY;
+  const to = process.env.BOOKING_NOTIFY_EMAIL;
+  const from = process.env.BOOKING_FROM_EMAIL || "GES Bookings <onboarding@resend.dev>";
+  const out: Record<string, unknown> = {
+    hasKey: !!key,
+    keyPrefix: key ? `${key.slice(0, 4)}…` : null,
+    notifyTo: to ?? null,
+    from,
+  };
+  if (!key || !to) {
+    out.attempt = "skipped — RESEND_API_KEY and/or BOOKING_NOTIFY_EMAIL not set on the server";
+    return out;
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from, to: [to],
+        subject: "GES — booking notifications test ✓",
+        html: "<p>If you can read this, your GES booking email notifications are working. You can ignore this message.</p>",
+      }),
+    });
+    out.attempt = { status: res.status, body: (await res.text()).slice(0, 500) };
+  } catch (e) {
+    out.attempt = { error: (e as Error).message };
+  }
+  return out;
+}
+
 export async function sendBookingEmail(b: BookingInfo): Promise<{ ok?: boolean; skipped?: boolean }> {
   const key = process.env.RESEND_API_KEY;
   const to = process.env.BOOKING_NOTIFY_EMAIL;
