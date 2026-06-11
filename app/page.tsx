@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import BookCall from "@/components/BookCall";
 import ScrollProgress from "@/components/ScrollProgress";
 import VideoHero from "@/components/VideoHero";
 import BikeShowcase from "@/components/BikeShowcase";
@@ -13,6 +14,7 @@ export default function Home() {
   return (
     <>
       <ScrollProgress />
+      <BookCall />
       <Navigation />
       <main>
         <VideoHero />

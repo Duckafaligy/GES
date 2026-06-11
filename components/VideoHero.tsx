@@ -160,11 +160,12 @@ export default function VideoHero() {
 
         {/* CTAs */}
         <div className="entry-d3 flex flex-wrap gap-4 mt-9">
-          <a href="#contact">
-            <button className="btn-brut">
-              Book a Meeting <ArrowRight size={16} />
-            </button>
-          </a>
+          <button
+            className="btn-brut"
+            onClick={() => window.dispatchEvent(new Event("ges:book"))}
+          >
+            Book a Meeting <ArrowRight size={16} />
+          </button>
           <a href="#services">
             <button className="btn-ghost">What We Build</button>
           </a>

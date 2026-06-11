@@ -67,21 +67,24 @@ components/
   Services.tsx        Services grid (E-Commerce · 3D · Agents/Workflows/Automation)
   Pricing.tsx         Pricing (kept understated — framed as an advantage)
   Process.tsx         Process / how-we-work timeline
-  Stats.tsx           Headline stats band
-  Contact.tsx         Contact / book-a-call section
+  Contact.tsx         Contact + "Book a discovery call" trigger
+  BookCall.tsx        Branded booking modal (date → time → details → confirm); opens on the `ges:book` event
+  ScrollProgress.tsx  Spring scroll-progress bar (bottom edge)
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
   LegalDoc.tsx        Data-driven layout for the legal pages (Privacy Policy, Terms of Service)
-lib/clients.ts        Client model + lookup (by code / by slug) + view tracking; v2 pipeline fields
+lib/clients.ts        Client model + lookup (by code / by slug) + view tracking
+lib/booking.ts        Shared booking slots/date helpers (used by the modal AND the API)
 lib/supabase.ts       Server-only Supabase service-role client (lazy)
 lib/session.ts        HMAC-signed, short-lived access tokens (no cookies)
 lib/devAuth.ts        Bearer-token guard for the developer dashboard
 app/api/verify-code/  Access code → short-lived preview token (+ logs the view)
 app/api/preview-meta/ Public, non-sensitive gate personalization (business name + ready, by slug)
-app/api/dev/          Dashboard auth + client CRUD + build upload + preview-token + zip download + views analytics (Bearer-gated)
-app/Developer-Dashboard-Page/   Password-gated internal dashboard (clients, uploads, viewer analytics)
-supabase/schema.sql   Full DB schema (v2: clients + client_views) + private storage bucket (no demo seed)
-supabase/migrations/  Incremental SQL for existing databases (2026-06-11-v2-analytics-and-codes.sql)
+app/api/book/         Public: GET taken slots for a day · POST a discovery-call booking
+app/api/dev/          Dashboard auth + client CRUD + uploads + preview-token + zip download + analytics + bookings (Bearer-gated)
+app/Developer-Dashboard-Page/   Password-gated dashboard (bookings, clients, per-client preview/upload/analytics)
+supabase/schema.sql   Full DB schema (clients + client_views + bookings) + private storage bucket
+supabase/migrations/  Incremental SQL for existing DBs (…-v2-analytics-and-codes.sql, …-v3-bookings.sql)
 scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
@@ -185,8 +188,9 @@ previous build (old files are cleared first). Files over ~4 MB are flagged (Verc
 compress large media or host it elsewhere.
 
 **Setup:** create a Supabase project, run `supabase/schema.sql` in its SQL editor
-(creates the `clients` + `client_views` tables and the private `client-previews`
-bucket; an existing DB instead runs the migration under `supabase/migrations/`),
+(creates the `clients` + `client_views` + `bookings` tables and the private
+`client-previews` bucket; an existing DB instead runs the migrations under
+`supabase/migrations/`),
 then copy `.env.example` to `.env.local` and fill in all five values
 (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`,
 `DEV_DASHBOARD_PASSWORD`, `DEV_DASHBOARD_DOB`). For the Vercel deployment set those
@@ -250,6 +254,22 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
 ## Recent changes
+
+### v0.8.0 — on-site booking + dashboard leads
+- **Book a discovery call, on-brand.** "Book a Meeting" (hero) and the Contact
+  card open a branded modal: pick a weekday → pick an ET time slot (already-taken
+  slots are greyed out) → name/email/business/notes → confirmation. No third-party
+  embed; it's GES through and through. Saves to a new `bookings` table (one meeting
+  per slot, enforced by a unique constraint).
+- **Bookings land in the dashboard.** A new **Bookings** panel shows every lead
+  (date/time, name, email, business, notes) with a "new" count, mark-done and
+  delete. New routes `app/api/book` (public) and `app/api/dev/bookings` (gated).
+- **Graceful pre-migration.** Until you run
+  `supabase/migrations/2026-06-11-v3-bookings.sql`, the slot list reads empty and
+  the modal/dashboard show a clear "run the migration" message instead of breaking.
+- Also: dashboard restructured to per-client **Manage** panels (live preview
+  thumbnail + access code + upload/replace + analytics; the standalone target-client
+  uploader is gone); the beige (`--bone`) was warmed so it no longer reads as white.
 
 ### v0.7.0 — viewer analytics, personalized portal
 - **Viewer analytics in the dashboard.** Every successful access-code entry is

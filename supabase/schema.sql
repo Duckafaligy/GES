@@ -43,6 +43,22 @@ create table if not exists public.client_views (
 create index if not exists client_views_client_idx on public.client_views (client_id, viewed_at desc);
 alter table public.client_views enable row level security;
 
--- 4) No demo seed. Create real clients from the developer dashboard
+-- 4) Discovery-call bookings (from the on-site "Book a call" flow)
+create table if not exists public.bookings (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  email      text not null,
+  business   text,
+  notes      text,
+  slot_date  date not null,            -- YYYY-MM-DD
+  slot_time  text not null,            -- "14:00" (Eastern)
+  status     text not null default 'new' check (status in ('new','done','cancelled')),
+  created_at timestamptz not null default now(),
+  unique (slot_date, slot_time)        -- one meeting per slot (no double-booking)
+);
+create index if not exists bookings_slot_idx on public.bookings (slot_date, slot_time);
+alter table public.bookings enable row level security;
+
+-- 5) No demo seed. Create real clients from the developer dashboard
 --    (/Developer-Dashboard-Page) — it generates a 64-char access code and stores
 --    only its SHA-256 hash. (Or use scripts/add-client.mjs.)

@@ -56,22 +56,25 @@ export default function Contact() {
             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform flex-shrink-0" />
           </motion.a>
 
-          <motion.div
+          <motion.button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("ges:book"))}
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="hard bg-[var(--bg)] p-7 flex items-center gap-5"
+            className="hard lift bg-[var(--bg)] p-7 flex items-center gap-5 text-left group w-full"
           >
             <div className="w-12 h-12 border-2 border-[var(--line)] grid place-items-center flex-shrink-0">
               <MessageCircle size={20} />
             </div>
-            <div>
-              <div className="font-extrabold uppercase text-sm tracking-tight mb-0.5">Discovery Call</div>
+            <div className="flex-1">
+              <div className="font-extrabold uppercase text-sm tracking-tight mb-0.5">Book a Discovery Call</div>
               <div className="mono text-sm">30-min free consultation</div>
-              <div className="text-[var(--muted)] text-xs mt-1">We learn your vision — zero pressure</div>
+              <div className="text-[var(--muted)] text-xs mt-1">Pick a time — zero pressure</div>
             </div>
-          </motion.div>
+            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform flex-shrink-0" />
+          </motion.button>
         </div>
 
         {/* Client Portal CTA */}

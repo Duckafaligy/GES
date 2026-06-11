@@ -1,7 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Search, AlertTriangle, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Search, AlertTriangle, ChevronDown, ChevronUp, Eye, CalendarDays, Check, Trash2 } from "lucide-react";
+import { fmtDateLong, fmtTime } from "@/lib/booking";
+
+interface DevBooking {
+  id: string;
+  name: string;
+  email: string;
+  business: string | null;
+  notes: string | null;
+  slot_date: string;
+  slot_time: string;
+  status: "new" | "done" | "cancelled";
+  created_at: string;
+}
 
 interface DevClient {
   id: string;
@@ -269,9 +282,11 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
 
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
 
+        <BookingsPanel api={api} onErr={err} />
+
         <section className="mt-10 entry-d3">
           <div className="flex items-center gap-4 mb-4 border-b-2 border-[var(--line)] pb-3">
-            <span className="eyebrow text-[var(--acid)]">02</span>
+            <span className="eyebrow text-[var(--acid)]">03</span>
             <span className="eyebrow">Clients</span>
             {clients.length > 0 && <span className="mono text-[10px] text-[var(--muted)]">{filtered.length}/{clients.length}</span>}
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
@@ -401,6 +416,114 @@ function AddClient({
           </span>
         </div>
       </form>
+    </section>
+  );
+}
+
+/* ── bookings panel — incoming discovery-call leads ── */
+function BookingsPanel({
+  api, onErr,
+}: {
+  api: (p: string, o?: RequestInit) => Promise<Response>;
+  onErr: (m: string) => void;
+}) {
+  const [bookings, setBookings] = useState<DevBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [needsMigration, setNeedsMigration] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api("/api/dev/bookings");
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || `Couldn't load bookings (HTTP ${res.status}).`);
+      setBookings(d.bookings ?? []);
+      setNeedsMigration(!!d.needsMigration);
+    } catch (e) { onErr((e as Error).message); }
+    finally { setLoading(false); }
+  }, [api, onErr]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function setStatus(id: string, status: string) {
+    try {
+      const res = await api("/api/dev/bookings", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); onErr(d.error ?? "Update failed."); return; }
+      load();
+    } catch (e) { onErr((e as Error).message); }
+  }
+  async function remove(id: string) {
+    if (!confirm("Delete this booking?")) return;
+    try {
+      const res = await api("/api/dev/bookings", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); onErr(d.error ?? "Delete failed."); return; }
+      load();
+    } catch (e) { onErr((e as Error).message); }
+  }
+
+  const pending = bookings.filter((b) => b.status === "new").length;
+
+  return (
+    <section className="hard hover-acid bg-[#0a0a0a] p-6 mb-6 entry-d2">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="eyebrow text-[var(--acid)]">02</span>
+        <span className="eyebrow text-[var(--muted)] flex items-center gap-2"><CalendarDays size={13} /> Bookings</span>
+        {pending > 0 && <span className="mono text-[10px] bg-[var(--acid)] text-[#0a0a0a] px-2 py-0.5 font-bold">{pending} new</span>}
+        <span className="flex-1 h-[2px] bg-[var(--line)] opacity-15" />
+        <button onClick={load} className="eyebrow text-[var(--muted)] hover:text-white transition-colors">Refresh</button>
+      </div>
+
+      {needsMigration ? (
+        <div className="mono text-[11px] text-amber-400 leading-relaxed">
+          Bookings table not set up yet — run <span className="text-white">supabase/migrations/2026-06-11-v3-bookings.sql</span> in the Supabase SQL editor.
+        </div>
+      ) : loading && bookings.length === 0 ? (
+        <div className="mono text-xs text-[var(--muted)]">Loading…</div>
+      ) : bookings.length === 0 ? (
+        <div className="mono text-[11px] text-[var(--muted)]">No bookings yet — they&apos;ll appear here when a prospect books a call.</div>
+      ) : (
+        <div className="space-y-2.5">
+          {bookings.map((b) => (
+            <div key={b.id} className={`border-2 border-[var(--line)]/50 p-3 flex flex-col sm:flex-row sm:items-center gap-3 ${b.status !== "new" ? "opacity-60" : ""}`}>
+              <div className="flex items-center gap-3 sm:w-44 flex-shrink-0">
+                <div className="text-center border-2 border-[var(--acid)] px-2 py-1 leading-none">
+                  <div className="mono text-[9px] uppercase tracking-widest text-[var(--muted)]">{fmtDateLong(b.slot_date).split(",")[0]}</div>
+                  <div className="font-bold text-sm">{fmtDateLong(b.slot_date).split(", ")[1]}</div>
+                </div>
+                <div className="mono text-xs font-bold text-[var(--acid)]">{fmtTime(b.slot_time)}<div className="text-[var(--muted)] text-[9px] font-normal">ET</div></div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-extrabold uppercase tracking-tight text-sm flex items-center gap-2 flex-wrap">
+                  {b.name}
+                  {b.status === "done" && <span className="mono text-[9px] uppercase tracking-widest text-[var(--acid)]">✓ done</span>}
+                  {b.status === "cancelled" && <span className="mono text-[9px] uppercase tracking-widest text-red-400">cancelled</span>}
+                </div>
+                <div className="mono text-[11px] text-[var(--muted)] mt-0.5 flex items-center gap-2 flex-wrap">
+                  <a href={`mailto:${b.email}`} className="ul-link text-[var(--acid)]">{b.email}</a>
+                  {b.business && <><span className="opacity-40">·</span><span>{b.business}</span></>}
+                </div>
+                {b.notes && <div className="text-[var(--muted)] text-xs mt-1 leading-snug">{b.notes}</div>}
+              </div>
+              <div className="flex gap-2 text-[11px] mono flex-shrink-0">
+                {b.status === "new" && (
+                  <button onClick={() => setStatus(b.id, "done")} title="Mark done" className="border-2 border-[var(--line)] px-2 py-1.5 hover:bg-white/10 inline-flex items-center gap-1">
+                    <Check size={12} /> Done
+                  </button>
+                )}
+                <button onClick={() => remove(b.id)} title="Delete" className="border-2 border-red-500/50 text-red-400 px-2 py-1.5 hover:bg-red-500/10 inline-flex items-center">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
