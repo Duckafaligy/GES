@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { SLOT_TIMES, isBookableDate } from "@/lib/booking";
+import { SLOT_TIMES, isBookableDate, etToUtc, MEETING_MINUTES } from "@/lib/booking";
+import { createBookingEvent } from "@/lib/gcal";
 
 export const runtime = "nodejs";
 
@@ -62,6 +63,20 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    // Best-effort: drop the event onto GES's Google Calendar (notifies Brendan).
+    // Never blocks the booking — a calendar hiccup must not lose the lead.
+    try {
+      const start = etToUtc(slot_date, slot_time);
+      const end = new Date(start.getTime() + MEETING_MINUTES * 60000);
+      await createBookingEvent({
+        name, email, business, notes,
+        startISO: start.toISOString(),
+        endISO: end.toISOString(),
+      });
+    } catch (e) {
+      console.error("gcal event failed (booking still saved):", (e as Error).message);
+    }
+
     return NextResponse.json({ ok: true, booking: data });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

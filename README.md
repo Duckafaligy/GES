@@ -264,6 +264,12 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - **Bookings land in the dashboard.** A new **Bookings** panel shows every lead
   (date/time, name, email, business, notes) with a "new" count, mark-done and
   delete. New routes `app/api/book` (public) and `app/api/dev/bookings` (gated).
+- **Calendar everywhere.** Confirmation offers "Add to Google Calendar" + an
+  `.ics` (Apple/Outlook) with a reminder, GES added as a guest. And if the
+  Google service-account env vars are set (`GOOGLE_SERVICE_ACCOUNT_EMAIL` /
+  `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID`), the server auto-creates the event
+  on GES's Google Calendar on every booking (`lib/gcal.ts`, signed-JWT service
+  account, no extra deps) so you're notified — best-effort, never blocks a lead.
 - **Graceful pre-migration.** Until you run
   `supabase/migrations/2026-06-11-v3-bookings.sql`, the slot list reads empty and
   the modal/dashboard show a clear "run the migration" message instead of breaking.
