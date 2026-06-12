@@ -26,8 +26,10 @@ export default function BookCall() {
   const [form, setForm] = useState({ name: "", email: "", business: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  const days = upcomingWeekdays(10);
+  // Bookable days/times come from the server (dashboard-controlled); fall back
+  // to the defaults if the availability endpoint is unreachable.
+  const [days, setDays] = useState<string[]>(() => upcomingWeekdays(10));
+  const [times, setTimes] = useState<string[]>(() => [...SLOT_TIMES]);
 
   const reset = useCallback(() => {
     setStep("date"); setDate(""); setTime(""); setTaken([]);
@@ -35,7 +37,16 @@ export default function BookCall() {
   }, []);
 
   useEffect(() => {
-    const onOpen = () => { reset(); setOpen(true); };
+    const onOpen = () => {
+      reset(); setOpen(true);
+      fetch("/api/availability")
+        .then((r) => r.json())
+        .then((d) => {
+          if (Array.isArray(d.days) && d.days.length) setDays(d.days);
+          if (Array.isArray(d.times) && d.times.length) setTimes(d.times);
+        })
+        .catch(() => {});
+    };
     window.addEventListener("ges:book", onOpen);
     return () => window.removeEventListener("ges:book", onOpen);
   }, [reset]);
@@ -163,7 +174,7 @@ export default function BookCall() {
                     <div className="font-mono text-xs text-gray-500 py-6 text-center">Loading availability…</div>
                   ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {SLOT_TIMES.map((t) => {
+                      {times.map((t) => {
                         const gone = taken.includes(t);
                         return (
                           <button

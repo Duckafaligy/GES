@@ -59,6 +59,19 @@ create table if not exists public.bookings (
 create index if not exists bookings_slot_idx on public.bookings (slot_date, slot_time);
 alter table public.bookings enable row level security;
 
--- 5) No demo seed. Create real clients from the developer dashboard
+-- 5) Booking availability settings (single row id=1) — which weekdays/times are
+--    bookable + blocked dates. Defaults mirror the original hard-coded behavior.
+create table if not exists public.booking_settings (
+  id            int primary key default 1 check (id = 1),
+  weekdays      int[]  not null default '{1,2,3,4,5}',
+  times         text[] not null default '{09:00,10:00,11:00,13:00,14:00,15:00,16:00}',
+  blocked_dates text[] not null default '{}',
+  horizon_days  int    not null default 14,
+  updated_at    timestamptz not null default now()
+);
+insert into public.booking_settings (id) values (1) on conflict (id) do nothing;
+alter table public.booking_settings enable row level security;
+
+-- 6) No demo seed. Create real clients from the developer dashboard
 --    (/Developer-Dashboard-Page) — it generates a 64-char access code and stores
 --    only its SHA-256 hash. (Or use scripts/add-client.mjs.)

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, AlertTriangle, ChevronDown, ChevronUp, Eye, CalendarDays, Check, Trash2 } from "lucide-react";
-import { fmtDateLong, fmtTime } from "@/lib/booking";
+import { fmtDateLong, fmtTime, ALL_SLOT_TIMES, WEEKDAY_LABELS, type BookingSettings } from "@/lib/booking";
 
 interface DevBooking {
   id: string;
@@ -283,10 +283,11 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
 
         <BookingsPanel api={api} onErr={err} />
+        <AvailabilityPanel api={api} onOk={ok} onErr={err} />
 
         <section className="mt-10 entry-d3">
           <div className="flex items-center gap-4 mb-4 border-b-2 border-[var(--line)] pb-3">
-            <span className="eyebrow text-[var(--acid)]">03</span>
+            <span className="eyebrow text-[var(--acid)]">04</span>
             <span className="eyebrow">Clients</span>
             {clients.length > 0 && <span className="mono text-[10px] text-[var(--muted)]">{filtered.length}/{clients.length}</span>}
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
@@ -416,6 +417,121 @@ function AddClient({
           </span>
         </div>
       </form>
+    </section>
+  );
+}
+
+/* ── availability settings — which days/times are bookable ── */
+function AvailabilityPanel({
+  api, onOk, onErr,
+}: {
+  api: (p: string, o?: RequestInit) => Promise<Response>;
+  onOk: (m: string) => void;
+  onErr: (m: string) => void;
+}) {
+  const [s, setS] = useState<BookingSettings | null>(null);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newDate, setNewDate] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api("/api/dev/availability");
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      setS(d.settings);
+    } catch (e) { onErr((e as Error).message); }
+  }, [api, onErr]);
+  useEffect(() => { load(); }, [load]);
+
+  if (!s) return null;
+  const upd = (patch: Partial<BookingSettings>) => setS({ ...s, ...patch });
+  const toggleDay = (n: number) => upd({ weekdays: s.weekdays.includes(n) ? s.weekdays.filter((x) => x !== n) : [...s.weekdays, n].sort() });
+  const toggleTime = (t: string) => upd({ times: s.times.includes(t) ? s.times.filter((x) => x !== t) : [...s.times, t].sort() });
+  const addBlocked = () => { if (newDate && !s.blocked.includes(newDate)) { upd({ blocked: [...s.blocked, newDate].sort() }); setNewDate(""); } };
+
+  async function save() {
+    if (!s) return;
+    setSaving(true);
+    try {
+      const res = await api("/api/dev/availability", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(s),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { onErr(d.error ?? "Save failed."); return; }
+      onOk("Availability updated — the booking calendar reflects it now.");
+    } catch (e) { onErr((e as Error).message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <section className="hard hover-acid bg-[#0a0a0a] p-6 mb-6 entry-d2">
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-3 text-left">
+        <span className="eyebrow text-[var(--acid)]">03</span>
+        <span className="eyebrow text-[var(--muted)] flex items-center gap-2"><CalendarDays size={13} /> Availability</span>
+        <span className="mono text-[10px] text-[var(--muted)]">{s.weekdays.length}d · {s.times.length} slots{s.blocked.length ? ` · ${s.blocked.length} blocked` : ""}</span>
+        <span className="flex-1 h-[2px] bg-[var(--line)] opacity-15" />
+        <span className="eyebrow text-[var(--muted)]">{open ? "Hide" : "Edit"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-5 space-y-5">
+          <div>
+            <span className="eyebrow text-[var(--muted)] mb-2 block">Bookable days</span>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAY_LABELS.map((lbl, n) => (
+                <button key={n} onClick={() => toggleDay(n)}
+                  className={`mono text-[11px] px-3 py-1.5 border-2 transition-colors ${s.weekdays.includes(n) ? "bg-[var(--acid)] text-[#0a0a0a] border-[var(--acid)] font-bold" : "border-[var(--line)]/40 text-[var(--muted)] hover:border-[var(--line)]"}`}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="eyebrow text-[var(--muted)] mb-2 block">Time slots (ET)</span>
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+              {ALL_SLOT_TIMES.map((t) => (
+                <button key={t} onClick={() => toggleTime(t)}
+                  className={`mono text-[10px] px-1.5 py-1.5 border-2 transition-colors ${s.times.includes(t) ? "bg-[var(--acid)] text-[#0a0a0a] border-[var(--acid)] font-bold" : "border-[var(--line)]/40 text-[var(--muted)] hover:border-[var(--line)]"}`}>
+                  {fmtTime(t)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            <div>
+              <span className="eyebrow text-[var(--muted)] mb-2 block">Block dates (days off)</span>
+              <div className="flex gap-2 mb-2">
+                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
+                  className="flex-1 bg-transparent border-2 border-[var(--line)] px-2 py-1.5 mono text-xs focus:outline-none focus:border-[var(--acid)] [color-scheme:dark]" />
+                <button onClick={addBlocked} disabled={!newDate} className="border-2 border-[var(--line)] px-3 py-1.5 mono text-[11px] hover:bg-white/10 disabled:opacity-40">Block</button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {s.blocked.length === 0 && <span className="mono text-[11px] text-[var(--muted)]">None</span>}
+                {s.blocked.map((d) => (
+                  <button key={d} onClick={() => upd({ blocked: s.blocked.filter((x) => x !== d) })}
+                    className="mono text-[10px] border-2 border-red-500/40 text-red-400 px-2 py-1 hover:bg-red-500/10">
+                    {fmtDateLong(d)} ✕
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="eyebrow text-[var(--muted)] mb-2 block">Show this many days ahead</span>
+              <input type="number" min={1} max={60} value={s.horizonDays}
+                onChange={(e) => upd({ horizonDays: Math.min(60, Math.max(1, Number(e.target.value) || 1)) })}
+                className="w-24 bg-transparent border-2 border-[var(--line)] px-3 py-1.5 mono text-sm focus:outline-none focus:border-[var(--acid)]" />
+            </div>
+          </div>
+
+          <button onClick={save} disabled={saving || s.weekdays.length === 0 || s.times.length === 0} className="btn-brut text-[11px] py-2.5 px-4 disabled:opacity-50">
+            {saving ? "Saving…" : "Save availability"}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

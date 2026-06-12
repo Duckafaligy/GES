@@ -84,7 +84,9 @@ app/api/book/         Public: GET taken slots for a day · POST a discovery-call
 app/api/dev/          Dashboard auth + client CRUD + uploads + preview-token + zip download + analytics + bookings (Bearer-gated)
 app/Developer-Dashboard-Page/   Password-gated dashboard (bookings, clients, per-client preview/upload/analytics)
 supabase/schema.sql   Full DB schema (clients + client_views + bookings) + private storage bucket
-supabase/migrations/  Incremental SQL for existing DBs (…-v2-analytics-and-codes.sql, …-v3-bookings.sql)
+lib/settings.ts       Booking availability settings (read/write, defaults if unmigrated)
+app/api/availability/ Public: bookable days + time slots for the modal
+supabase/migrations/  Incremental SQL for existing DBs (v2-analytics-and-codes, v3-bookings, v4-availability)
 scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
@@ -256,6 +258,11 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 ## Recent changes
 
 ### v0.8.0 — on-site booking + dashboard leads
+- **Availability settings.** A dashboard **Availability** panel controls which
+  weekdays + time slots are bookable, blocks specific dates (vacations), and sets
+  how many days ahead to show. The modal reads it from `/api/availability`; the
+  server validates every booking against it. Stored in `booking_settings`
+  (single row), with defaults that mirror the original behavior pre-migration.
 - **Book a discovery call, on-brand.** "Book a Meeting" (hero) and the Contact
   card open a branded modal: pick a weekday → pick an ET time slot (already-taken
   slots are greyed out) → name/email/business/notes → confirmation. No third-party

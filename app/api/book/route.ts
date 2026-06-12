@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { SLOT_TIMES, isBookableDate, etToUtc, MEETING_MINUTES } from "@/lib/booking";
+import { isSlotBookable, isBookableDate, etToUtc, MEETING_MINUTES } from "@/lib/booking";
+import { getBookingSettings } from "@/lib/settings";
 import { createBookingEvent } from "@/lib/gcal";
 import { sendBookingEmail } from "@/lib/email";
 
@@ -40,9 +41,10 @@ export async function POST(req: NextRequest) {
 
   if (!name) return NextResponse.json({ error: "Please enter your name." }, { status: 400 });
   if (!EMAIL_RE.test(email)) return NextResponse.json({ error: "Please enter a valid email." }, { status: 400 });
-  if (!isBookableDate(slot_date)) return NextResponse.json({ error: "Pick a valid weekday." }, { status: 400 });
-  if (!(SLOT_TIMES as readonly string[]).includes(slot_time)) {
-    return NextResponse.json({ error: "Pick a valid time slot." }, { status: 400 });
+
+  const settings = await getBookingSettings();
+  if (!isSlotBookable(settings, slot_date, slot_time)) {
+    return NextResponse.json({ error: "That slot isn't available — please pick another." }, { status: 400 });
   }
 
   try {

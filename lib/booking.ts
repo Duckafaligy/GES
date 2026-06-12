@@ -1,37 +1,82 @@
 // Shared booking helpers — pure (no server imports), used by the booking modal
 // AND the API route so the available slots stay in sync.
 
-// Bookable times (Eastern). Lunch (12:00) intentionally skipped.
+// Default bookable times (Eastern). Lunch (12:00) intentionally skipped.
 export const SLOT_TIMES = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"] as const;
+
+// Master list the dashboard lets you toggle on/off (every 30 min, 8am–6pm ET).
+export const ALL_SLOT_TIMES = [
+  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+  "16:00", "16:30", "17:00", "17:30", "18:00",
+];
+
+export const DEFAULT_WEEKDAYS = [1, 2, 3, 4, 5]; // Mon–Fri (0=Sun)
+export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export interface BookingSettings {
+  weekdays: number[];
+  times: string[];
+  blocked: string[];
+  horizonDays: number;
+}
+
+export const DEFAULT_SETTINGS: BookingSettings = {
+  weekdays: DEFAULT_WEEKDAYS,
+  times: [...SLOT_TIMES],
+  blocked: [],
+  horizonDays: 14,
+};
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const toYMD = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-/** The next `count` weekdays (Mon–Fri), starting tomorrow, as YYYY-MM-DD. */
-export function upcomingWeekdays(count = 10): string[] {
+/** The next `count` bookable dates given enabled weekdays + blocked list. */
+export function upcomingDays(s: BookingSettings, count?: number): string[] {
+  const want = count ?? s.horizonDays ?? 14;
   const out: string[] = [];
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  while (out.length < count) {
+  let guard = 0;
+  while (out.length < want && guard < 400) {
+    guard++;
     d.setDate(d.getDate() + 1);
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) out.push(toYMD(d));
+    const ymd = toYMD(d);
+    if (s.weekdays.includes(d.getDay()) && !s.blocked.includes(ymd)) out.push(ymd);
   }
   return out;
 }
 
-/** Lenient server-side validity: a weekday, not in the past, within ~3 months. */
+/** Back-compat: next N weekdays (Mon–Fri). */
+export function upcomingWeekdays(count = 10): string[] {
+  return upcomingDays(DEFAULT_SETTINGS, count);
+}
+
+/** Server-side validity against the active settings: enabled weekday, not
+    blocked, not in the past, within the booking horizon. */
+export function isSlotBookable(s: BookingSettings, ymd: string, hhmm: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  if (!s.times.includes(hhmm)) return false;
+  if (s.blocked.includes(ymd)) return false;
+  const d = new Date(ymd + "T12:00:00");
+  if (isNaN(d.getTime())) return false;
+  if (!s.weekdays.includes(d.getUTCDay())) return false;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const min = new Date(today); min.setDate(min.getDate() - 1);
+  const max = new Date(today); max.setDate(max.getDate() + (s.horizonDays || 14) + 5);
+  return d >= min && d <= max;
+}
+
+/** Lenient date-only check used by the GET availability lookup. */
 export function isBookableDate(ymd: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
   const d = new Date(ymd + "T12:00:00");
   if (isNaN(d.getTime())) return false;
-  const day = d.getUTCDay();
-  if (day === 0 || day === 6) return false;
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const max = new Date(today); max.setDate(max.getDate() + 95);
-  // allow from yesterday to absorb timezone edge cases
   const min = new Date(today); min.setDate(min.getDate() - 1);
+  const max = new Date(today); max.setDate(max.getDate() + 120);
   return d >= min && d <= max;
 }
 
