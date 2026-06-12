@@ -3,9 +3,23 @@
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 
-const PROJECTS = [
+interface Project {
+  name: string;
+  short: string;
+  tag: string;
+  status: string;
+  live: boolean;
+  url: string;
+  img: string;
+  blurb: string;
+  price: number;
+  breakdown: { item: string; cost: number }[];
+}
+
+const PROJECTS: Project[] = [
   {
     name: "CLIME",
+    short: "CLIME",
     tag: "E-Commerce",
     status: "Demo build",
     live: false,
@@ -13,9 +27,17 @@ const PROJECTS = [
     img: "/portfolio/clime.png",
     blurb:
       "A full e-commerce concept build — cinematic product hero, interactive device showcase, and a pre-order flow. A demo (not a live store), built to show exactly what we ship.",
+    price: 2200,
+    breakdown: [
+      { item: "Base e-commerce build", cost: 1000 },
+      { item: "Cinematic 3D product hero", cost: 700 },
+      { item: "Scroll-driven animation", cost: 200 },
+      { item: "Product pages (×6)", cost: 300 },
+    ],
   },
   {
     name: "Ontario Thriving Development Program",
+    short: "OTDP",
     tag: "Platform",
     status: "Live · real org",
     live: true,
@@ -23,8 +45,16 @@ const PROJECTS = [
     img: "/portfolio/otdp.png",
     blurb:
       "A real, live platform for an Ontario organization — free multilingual study help for students, with fast onboarding and conversion-first sign-up.",
+    price: 1400,
+    breakdown: [
+      { item: "Base platform build", cost: 1000 },
+      { item: "Extra pages (×8)", cost: 200 },
+      { item: "Custom onboarding & flows", cost: 200 },
+    ],
   },
 ];
+
+const money = (n: number) => `$${n.toLocaleString()}`;
 
 export default function Work() {
   return (
@@ -71,7 +101,6 @@ export default function Work() {
               className="hard lift bg-[var(--bg)] group block overflow-hidden"
             >
               <div className="border-b-2 border-[var(--line)] overflow-hidden relative">
-                {/* status pill */}
                 <span
                   className={`absolute top-3 left-3 z-10 mono text-[10px] uppercase tracking-[0.14em] px-2 py-1 border-2 inline-flex items-center gap-1.5 ${
                     p.live
@@ -96,10 +125,54 @@ export default function Work() {
                   <ArrowUpRight size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </div>
                 <div className="font-extrabold uppercase tracking-tight text-lg leading-tight mb-2">{p.name}</div>
-                <p className="text-[var(--muted)] text-sm leading-relaxed">{p.blurb}</p>
+                <p className="text-[var(--muted)] text-sm leading-relaxed mb-4">{p.blurb}</p>
+                <div className="flex items-baseline justify-between border-t-2 border-[var(--line)]/30 pt-3">
+                  <span className="eyebrow text-[var(--muted)]">Est. build value</span>
+                  <span className="display text-2xl text-[var(--acid)]">≈ {money(p.price)}</span>
+                </div>
               </div>
             </motion.a>
           ))}
+        </div>
+
+        {/* Price breakdown */}
+        <div className="mt-14">
+          <div className="flex items-center gap-4 mb-6 border-b-2 border-[var(--line)] pb-3">
+            <span className="eyebrow text-[var(--amber)]">Price Breakdown</span>
+            <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
+            <span className="eyebrow text-[var(--muted)]">Indicative</span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-7">
+            {PROJECTS.map((p, i) => (
+              <motion.div
+                key={p.name}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className="hard bg-[var(--bg)] p-6"
+              >
+                <div className="flex items-baseline justify-between mb-4">
+                  <span className="font-extrabold uppercase tracking-tight">{p.short}</span>
+                  <span className="display text-3xl text-[var(--acid)]">≈ {money(p.price)}</span>
+                </div>
+                <div className="space-y-2.5">
+                  {p.breakdown.map((b) => (
+                    <div key={b.item} className="flex items-baseline gap-2 mono text-[11px]">
+                      <span className="text-[var(--fg)]">{b.item}</span>
+                      <span className="flex-1 border-b border-dotted border-[var(--line)]/40 translate-y-[-2px]" />
+                      <span className="text-[var(--muted)]">{money(b.cost)}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <p className="mono text-[11px] text-[var(--muted)] mt-5 leading-relaxed max-w-2xl">
+            Indicative build values for these examples. Your exact quote depends on scope —
+            number of products, 3D tiers, animations — and we walk you through it upfront on the call.
+            <span className="text-[var(--fg)]"> No surprises.</span>
+          </p>
         </div>
       </div>
     </section>
