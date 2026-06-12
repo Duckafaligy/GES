@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import CustomCursor from "@/components/CustomCursor";
 import BookCall from "@/components/BookCall";
 import ScrollProgress from "@/components/ScrollProgress";
 import VideoHero from "@/components/VideoHero";
@@ -14,6 +15,7 @@ import Footer from "@/components/Footer";
 export default function Home() {
   return (
     <>
+      <CustomCursor />
       <ScrollProgress />
       <BookCall />
       <Navigation />

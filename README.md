@@ -67,7 +67,9 @@ components/
   Services.tsx        Services grid (E-Commerce · 3D · Agents/Workflows/Automation)
   Pricing.tsx         Pricing (kept understated — framed as an advantage)
   Process.tsx         Process / how-we-work timeline
+  Work.tsx            Selected Work (CLIME demo + OTDP live) — status pills, est. build value + price breakdown
   Contact.tsx         Contact + "Book a discovery call" trigger
+  CustomCursor.tsx    Signature acid cursor ring (desktop fine-pointer only; off for touch + reduced-motion)
   BookCall.tsx        Branded booking flow (email-verify → month calendar → details → confirm). Modal on the `ges:book` event, AND `<BookCall inline />` renders it as a section above the footer
   MonthCalendar.tsx   Calendly-style month grid (shared by the booking flow + the manage page)
   ScrollProgress.tsx  Spring scroll-progress bar (bottom edge)
@@ -89,7 +91,7 @@ app/Developer-Dashboard-Page/   Password-gated dashboard (bookings, clients, per
 supabase/schema.sql   Full DB schema (clients + client_views + bookings) + private storage bucket
 lib/settings.ts       Booking availability settings (read/write, defaults if unmigrated)
 app/api/availability/ Public: bookable days + time slots for the modal
-supabase/migrations/  Incremental SQL for existing DBs (v2-analytics-and-codes, v3-bookings, v4-availability)
+supabase/migrations/  Incremental SQL for existing DBs (v2-analytics-and-codes, v3-bookings, v4-availability, v5-signups, v6-booking-manage)
 scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
@@ -259,6 +261,25 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
 ## Recent changes
+
+### v0.9.0 — Selected Work, FAQ hub, landing polish
+- **Selected Work section.** Two real builds front-and-center: **CLIME**
+  (labelled a full **website demo** — an example, not a live org) and **OTDP**
+  (a **live, real organization**). Each card shows a status pill, an **est. build
+  value** (CLIME ~$2,200, OTDP ~$1,400) and a small **price breakdown** with
+  dotted leaders, noted as indicative — exact quote comes on the call. The
+  Process timeline now sits **below** the examples.
+- **FAQ "resources" hub (`/faq`).** Instead of an inline accordion, FAQs live on
+  their own blog-style page (`FaqDoc.tsx`): dark glow header, light body,
+  animated accordion categories (Pricing, Ownership buy-out vs rent, Process,
+  3D/Tech, Working Together) and a CTA back to booking. Linked from the footer.
+- **No public quote builder — on purpose.** We surface price ranges on the demo
+  cards and talk specifics on the call; a public pricing/quote tool was
+  deliberately left out so it doesn't anchor or deter bookings.
+- **Landing micro-interactions.** A signature **acid cursor ring**
+  (`CustomCursor.tsx`) trails the pointer and grows over interactive elements —
+  desktop fine-pointer only, disabled for touch and reduced-motion, with the
+  native cursor left intact.
 
 ### v0.8.0 — on-site booking + dashboard leads
 - **Calendly-style calendar + email sign-up gate.** The booking modal is now a
