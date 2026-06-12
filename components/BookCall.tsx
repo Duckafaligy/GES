@@ -34,8 +34,8 @@ function loadBooker(): { token: string; email: string } | null {
 }
 
 // Any button anywhere can open this with: window.dispatchEvent(new Event("ges:book"))
-export default function BookCall() {
-  const [open, setOpen] = useState(false);
+export default function BookCall({ inline = false }: { inline?: boolean }) {
+  const [open, setOpen] = useState(inline);
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [codeInput, setCodeInput] = useState("");
@@ -61,8 +61,7 @@ export default function BookCall() {
   }, []);
 
   useEffect(() => {
-    const onOpen = () => {
-      reset(); setOpen(true);
+    const loadAvail = () =>
       fetch("/api/availability")
         .then((r) => r.json())
         .then((d) => {
@@ -70,17 +69,19 @@ export default function BookCall() {
           if (Array.isArray(d.times) && d.times.length) setTimes(d.times);
         })
         .catch(() => {});
-    };
+    // Inline section: render the flow in place (no modal/event needed).
+    if (inline) { reset(); loadAvail(); return; }
+    const onOpen = () => { reset(); setOpen(true); loadAvail(); };
     window.addEventListener("ges:book", onOpen);
     return () => window.removeEventListener("ges:book", onOpen);
-  }, [reset]);
+  }, [reset, inline]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || inline) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
-  }, [open]);
+  }, [open, inline]);
 
   function saveBooker(token: string, em: string) {
     const b = { token, email: em, exp: Date.now() + 110 * 60 * 1000 };
@@ -174,24 +175,10 @@ export default function BookCall() {
   const STEPS: Step[] = ["email", "code", "schedule", "details"];
   const stepIdx = STEPS.indexOf(step);
 
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-[80] grid place-items-center px-4 py-6 bg-black/80 backdrop-blur-sm"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          onClick={close}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 18, scale: 0.97 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
-            onClick={(e) => e.stopPropagation()}
-            className={`relative w-full ${step === "schedule" ? "max-w-2xl" : "max-w-lg"} bg-[#0a0a0a] text-white border-2 border-white shadow-[10px_10px_0_0_#ccff00] max-h-[88vh] overflow-y-auto transition-all`}
-          >
+  const panel = (
+    <>
             {/* header */}
-            <div className="sticky top-0 z-10 bg-[#0a0a0a] border-b-2 border-white/15 px-6 py-4 flex items-center justify-between">
+            <div className={`${inline ? "" : "sticky top-0 z-10"} bg-[#0a0a0a] border-b-2 border-white/15 px-6 py-4 flex items-center justify-between`}>
               <div className="flex items-center gap-2.5">
                 <span className="w-7 h-7 bg-[#ccff00] text-[#0a0a0a] grid place-items-center font-black text-xs border-2 border-white">G</span>
                 <div>
@@ -199,7 +186,7 @@ export default function BookCall() {
                   <div className="font-extrabold uppercase tracking-tight text-sm leading-none mt-0.5">30 min · free · zero pressure</div>
                 </div>
               </div>
-              <button onClick={close} aria-label="Close" className="text-gray-400 hover:text-white"><X size={18} /></button>
+              {!inline && <button onClick={close} aria-label="Close" className="text-gray-400 hover:text-white"><X size={18} /></button>}
             </div>
 
             {/* step indicator */}
@@ -401,12 +388,67 @@ export default function BookCall() {
                   <p className="text-gray-500 text-[11px] leading-relaxed mb-5">
                     A confirmation is on its way to <span className="text-gray-300">{email}</span>.
                   </p>
-                  <button onClick={close} className="font-mono text-xs font-bold uppercase tracking-[0.08em] border-2 border-white px-6 py-3 hover:bg-white hover:text-[#0a0a0a] transition-colors">
-                    Done
+                  <button
+                    onClick={() => { if (inline) { reset(); } else { close(); } }}
+                    className="font-mono text-xs font-bold uppercase tracking-[0.08em] border-2 border-white px-6 py-3 hover:bg-white hover:text-[#0a0a0a] transition-colors"
+                  >
+                    {inline ? "Book another" : "Done"}
                   </button>
                 </div>
               )}
             </div>
+    </>
+  );
+
+  // ── Inline section (near the footer) ──
+  if (inline) {
+    return (
+      <section id="book" className="sec-dark py-24 border-t-2 border-[var(--line)]">
+        <div className="max-w-6xl mx-auto px-5">
+          <div className="flex items-center gap-4 mb-10 border-b-2 border-[var(--line)] pb-4">
+            <span className="eyebrow">07 / Book</span>
+            <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
+            <span className="eyebrow text-[var(--amber)]">Free · 30 min</span>
+          </div>
+          <div className="grid lg:grid-cols-[1fr_1.4fr] gap-10 items-start">
+            <div>
+              <h2 className="glow-acid display text-[clamp(2.2rem,5.5vw,4.2rem)] mb-5">
+                Grab A{" "}
+                <span className="inline-block bg-[var(--acid)] text-[#0a0a0a] px-2">Time</span>
+              </h2>
+              <p className="text-[var(--muted)] text-base md:text-lg leading-relaxed">
+                Verify your email, pick a slot, and we&apos;ll meet for a free 30-minute
+                discovery call — we learn your business, then build you a tailored
+                preview. No obligation until you approve the design.
+              </p>
+            </div>
+            <div className="bg-[#0a0a0a] text-white border-2 border-white shadow-[10px_10px_0_0_var(--acid)] overflow-hidden">
+              {panel}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // ── Modal (triggered by "Book a Meeting" / Contact buttons) ──
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[80] grid place-items-center px-4 py-6 bg-black/80 backdrop-blur-sm"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={close}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.97 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            onClick={(e) => e.stopPropagation()}
+            className={`relative w-full ${step === "schedule" ? "max-w-2xl" : "max-w-lg"} bg-[#0a0a0a] text-white border-2 border-white shadow-[10px_10px_0_0_#ccff00] max-h-[88vh] overflow-y-auto transition-all`}
+          >
+            {panel}
           </motion.div>
         </motion.div>
       )}

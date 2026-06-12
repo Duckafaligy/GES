@@ -68,7 +68,7 @@ components/
   Pricing.tsx         Pricing (kept understated — framed as an advantage)
   Process.tsx         Process / how-we-work timeline
   Contact.tsx         Contact + "Book a discovery call" trigger
-  BookCall.tsx        Branded booking modal (date → time → details → confirm); opens on the `ges:book` event
+  BookCall.tsx        Branded booking flow (email-verify → month calendar → details → confirm). Modal on the `ges:book` event, AND `<BookCall inline />` renders it as a section above the footer
   ScrollProgress.tsx  Spring scroll-progress bar (bottom edge)
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)

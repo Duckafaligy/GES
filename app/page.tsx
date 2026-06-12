@@ -24,6 +24,7 @@ export default function Home() {
         <ThreeDFeatures />
         <Process />
         <Contact />
+        <BookCall inline />
       </main>
       <Footer />
     </>
