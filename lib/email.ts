@@ -16,6 +16,94 @@ export function emailConfigured(): boolean {
   return !!(process.env.RESEND_API_KEY && process.env.BOOKING_NOTIFY_EMAIL);
 }
 
+function fromAddress(): string {
+  return process.env.BOOKING_FROM_EMAIL || "GES <onboarding@resend.dev>";
+}
+
+interface Mail {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+  attachments?: { filename: string; content: string }[];
+}
+
+async function sendViaResend(m: Mail): Promise<void> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY not configured");
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: fromAddress(),
+      to: [m.to],
+      ...(m.replyTo ? { reply_to: m.replyTo } : {}),
+      subject: m.subject,
+      html: m.html,
+      ...(m.attachments ? { attachments: m.attachments } : {}),
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+}
+
+/** Brutalist-brand shell for all GES emails. */
+function shell(title: string, inner: string): string {
+  return `
+  <div style="max-width:520px;margin:0 auto;font-family:system-ui,sans-serif;border:2px solid #0a0a0a">
+    <div style="background:#0a0a0a;padding:16px 20px">
+      <span style="display:inline-block;background:#ccff00;color:#0a0a0a;font:900 14px/1 system-ui;padding:6px 9px;border:2px solid #fff">G</span>
+      <span style="color:#ccff00;font:800 14px/1 system-ui;text-transform:uppercase;letter-spacing:.02em;margin-left:10px">${title}</span>
+    </div>
+    <div style="padding:22px 20px">${inner}</div>
+    <div style="border-top:2px solid #eee;padding:12px 20px;color:#999;font:11px/1.5 system-ui">GES — Global E-Commerce Saviours</div>
+  </div>`;
+}
+
+/** 6-digit verification code email (the "sign up" step of booking). */
+export async function sendVerificationEmail(to: string, code: string): Promise<void> {
+  await sendViaResend({
+    to,
+    subject: `${code} is your GES verification code`,
+    html: shell(
+      "Verify your email",
+      `<p style="color:#444;font:14px/1.6 system-ui;margin:0 0 14px">Use this code to finish booking your discovery call with GES:</p>
+       <div style="font:800 34px/1 ui-monospace,monospace;letter-spacing:.18em;color:#0a0a0a;background:#f4f4ee;border:2px solid #0a0a0a;padding:16px 20px;text-align:center">${code}</div>
+       <p style="color:#999;font:12px/1.6 system-ui;margin:14px 0 0">The code expires in 10 minutes. If you didn't request it, ignore this email.</p>`
+    ),
+  });
+}
+
+/** One-time welcome email after the first successful verification. */
+export async function sendWelcomeEmail(to: string): Promise<void> {
+  await sendViaResend({
+    to,
+    subject: "Welcome to GES 👋",
+    html: shell(
+      "Welcome to GES",
+      `<p style="color:#111;font:800 18px/1.3 system-ui;margin:0 0 10px">Your email is verified — you're in.</p>
+       <p style="color:#444;font:14px/1.7 system-ui;margin:0 0 10px">You can now book discovery calls with us in seconds. On the call we learn your business, then build you a tailored website preview — conversion-first design, lifelike 3D product experiences, and the automation to run it all.</p>
+       <p style="color:#444;font:14px/1.7 system-ui;margin:0">Talk soon,<br/><strong>The GES team</strong></p>`
+    ),
+  });
+}
+
+/** Booking confirmation for the PROSPECT (with .ics attached). Best-effort. */
+export async function sendBookingConfirmation(b: BookingInfo): Promise<void> {
+  const when = `${fmtDateFull(b.slot_date)} · ${fmtTime(b.slot_time)} ET`;
+  const ics = buildIcs(b.name, b.email, b.slot_date, b.slot_time, b.notes ?? undefined);
+  await sendViaResend({
+    to: b.email,
+    subject: `You're booked — GES discovery call · ${when}`,
+    html: shell(
+      "You're booked",
+      `<p style="color:#111;font:800 20px/1.3 system-ui;margin:0 0 6px">${when}</p>
+       <p style="color:#444;font:14px/1.7 system-ui;margin:0 0 12px">Your 30-minute discovery call with GES is confirmed, ${b.name}. The attached invite adds it to your calendar with a reminder.</p>
+       <p style="color:#999;font:12px/1.6 system-ui;margin:0">Need to change it? Just reply to this email.</p>`
+    ),
+    attachments: [{ filename: "ges-discovery-call.ics", content: Buffer.from(ics).toString("base64") }],
+  });
+}
+
 /** Dev diagnostic: report config + attempt a live test send, returning Resend's
     actual status/body so misconfig is obvious. Never throws. */
 export async function emailDiagnostics(): Promise<Record<string, unknown>> {

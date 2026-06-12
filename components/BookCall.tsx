@@ -1,39 +1,63 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, ArrowLeft, ArrowRight, Check, CalendarDays, Clock, Download } from "lucide-react";
+import {
+  X, ArrowLeft, ArrowRight, Check, CalendarDays, Clock, Download,
+  ChevronLeft, ChevronRight, Mail, ShieldCheck,
+} from "lucide-react";
 import {
   SLOT_TIMES,
   upcomingWeekdays,
   fmtDateLong,
   fmtDateFull,
   fmtTime,
+  toYMD,
   googleCalUrl,
   buildIcs,
+  WEEKDAY_LABELS,
 } from "@/lib/booking";
 
-type Step = "date" | "time" | "details" | "done";
+type Step = "email" | "code" | "schedule" | "details" | "done";
+
+const BOOKER_KEY = "ges_booker"; // sessionStorage: { token, email, exp }
+
+function loadBooker(): { token: string; email: string } | null {
+  try {
+    const raw = sessionStorage.getItem(BOOKER_KEY);
+    if (!raw) return null;
+    const b = JSON.parse(raw);
+    if (b.exp && b.exp > Date.now() && b.token && b.email) return b;
+    sessionStorage.removeItem(BOOKER_KEY);
+  } catch { /* ignore */ }
+  return null;
+}
 
 // Any button anywhere can open this with: window.dispatchEvent(new Event("ges:book"))
 export default function BookCall() {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>("date");
+  const [step, setStep] = useState<Step>("email");
+  const [email, setEmail] = useState("");
+  const [codeInput, setCodeInput] = useState("");
+  const [booker, setBooker] = useState<{ token: string; email: string } | null>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [taken, setTaken] = useState<string[]>([]);
   const [loadingTaken, setLoadingTaken] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", business: "", notes: "" });
-  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({ name: "", business: "", notes: "" });
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // Bookable days/times come from the server (dashboard-controlled); fall back
-  // to the defaults if the availability endpoint is unreachable.
+  // Bookable days/times come from the server (dashboard-controlled).
   const [days, setDays] = useState<string[]>(() => upcomingWeekdays(10));
   const [times, setTimes] = useState<string[]>(() => [...SLOT_TIMES]);
 
   const reset = useCallback(() => {
-    setStep("date"); setDate(""); setTime(""); setTaken([]);
-    setForm({ name: "", email: "", business: "", notes: "" }); setError("");
+    setCodeInput(""); setDate(""); setTime(""); setTaken([]);
+    setForm({ name: "", business: "", notes: "" }); setError(""); setBusy(false);
+    const b = loadBooker();
+    setBooker(b);
+    if (b) { setEmail(b.email); setStep("schedule"); }
+    else setStep("email");
   }, []);
 
   useEffect(() => {
@@ -51,7 +75,6 @@ export default function BookCall() {
     return () => window.removeEventListener("ges:book", onOpen);
   }, [reset]);
 
-  // lock body scroll while open
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -59,8 +82,47 @@ export default function BookCall() {
     return () => { document.body.style.overflow = prev; };
   }, [open]);
 
+  function saveBooker(token: string, em: string) {
+    const b = { token, email: em, exp: Date.now() + 110 * 60 * 1000 };
+    try { sessionStorage.setItem(BOOKER_KEY, JSON.stringify(b)); } catch { /* ignore */ }
+    setBooker({ token, email: em });
+  }
+
+  async function requestCode() {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error ?? "Couldn't send the code."); return; }
+      if (d.skipVerification && d.token) { saveBooker(d.token, email.trim().toLowerCase()); setStep("schedule"); return; }
+      setCodeInput("");
+      setStep("code");
+    } catch { setError("Network error. Please try again."); }
+    finally { setBusy(false); }
+  }
+
+  async function verifyCode() {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/signup/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), code: codeInput.trim() }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error ?? "Wrong code."); return; }
+      saveBooker(d.token, email.trim().toLowerCase());
+      setStep("schedule");
+    } catch { setError("Network error. Please try again."); }
+    finally { setBusy(false); }
+  }
+
   async function pickDate(d: string) {
-    setDate(d); setTime(""); setStep("time"); setLoadingTaken(true);
+    setDate(d); setTime(""); setLoadingTaken(true);
     try {
       const res = await fetch(`/api/book?date=${encodeURIComponent(d)}`);
       const data = await res.json();
@@ -70,36 +132,47 @@ export default function BookCall() {
   }
 
   async function submit() {
-    setSubmitting(true); setError("");
+    setBusy(true); setError("");
     try {
       const res = await fetch("/api/book", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, slot_date: date, slot_time: time }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(booker ? { Authorization: `Bearer ${booker.token}` } : {}),
+        },
+        body: JSON.stringify({ ...form, email, slot_date: date, slot_time: time }),
       });
-      const data = await res.json();
+      const d = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Couldn't book — please try again.");
-        if (res.status === 409) { setStep("time"); } // slot taken; re-pick
-        setSubmitting(false);
+        if (res.status === 401) { // token expired → re-verify
+          sessionStorage.removeItem(BOOKER_KEY); setBooker(null);
+          setError("Your verification expired — confirm your email again.");
+          setStep("email");
+          return;
+        }
+        setError(d.error ?? "Couldn't book — please try again.");
+        if (res.status === 409) { setStep("schedule"); pickDate(date); }
         return;
       }
       setStep("done");
     } catch { setError("Network error. Please try again."); }
-    finally { setSubmitting(false); }
+    finally { setBusy(false); }
   }
 
   const close = () => setOpen(false);
-  const canSubmit = form.name.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   function downloadIcs() {
-    const ics = buildIcs(form.name, form.email, date, time, form.notes);
+    const ics = buildIcs(form.name, email, date, time, form.notes);
     const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
     const a = document.createElement("a");
     a.href = url; a.download = "ges-discovery-call.ics";
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   }
+
+  const STEPS: Step[] = ["email", "code", "schedule", "details"];
+  const stepIdx = STEPS.indexOf(step);
 
   return (
     <AnimatePresence>
@@ -115,10 +188,10 @@ export default function BookCall() {
             exit={{ opacity: 0, y: 18, scale: 0.97 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg bg-[#0a0a0a] text-white border-2 border-white shadow-[10px_10px_0_0_#ccff00] max-h-[88vh] overflow-y-auto"
+            className={`relative w-full ${step === "schedule" ? "max-w-2xl" : "max-w-lg"} bg-[#0a0a0a] text-white border-2 border-white shadow-[10px_10px_0_0_#ccff00] max-h-[88vh] overflow-y-auto transition-all`}
           >
             {/* header */}
-            <div className="sticky top-0 bg-[#0a0a0a] border-b-2 border-white/15 px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 z-10 bg-[#0a0a0a] border-b-2 border-white/15 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="w-7 h-7 bg-[#ccff00] text-[#0a0a0a] grid place-items-center font-black text-xs border-2 border-white">G</span>
                 <div>
@@ -132,79 +205,148 @@ export default function BookCall() {
             {/* step indicator */}
             {step !== "done" && (
               <div className="flex gap-1.5 px-6 pt-4">
-                {(["date", "time", "details"] as Step[]).map((s) => (
-                  <span key={s} className={`h-1 flex-1 ${["date", "time", "details"].indexOf(step) >= ["date", "time", "details"].indexOf(s) ? "bg-[#ccff00]" : "bg-white/15"}`} />
+                {STEPS.map((s, i) => (
+                  <span key={s} className={`h-1 flex-1 ${stepIdx >= i ? "bg-[#ccff00]" : "bg-white/15"}`} />
                 ))}
               </div>
             )}
 
             <div className="p-6">
-              {/* STEP 1 — DATE */}
-              {step === "date" && (
+              {/* STEP 1 — EMAIL (sign up) */}
+              {step === "email" && (
                 <div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-gray-400 mb-3 flex items-center gap-2">
-                    <CalendarDays size={13} className="text-[#ccff00]" /> Pick a day
+                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-gray-400 mb-1 flex items-center gap-2">
+                    <Mail size={13} className="text-[#ccff00]" /> Your email
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {days.map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => pickDate(d)}
-                        className="border-2 border-white/30 hover:border-[#ccff00] hover:bg-[#ccff00]/10 px-3 py-3 text-left transition-colors"
-                      >
-                        <div className="font-mono text-[10px] uppercase tracking-widest text-gray-400">{fmtDateLong(d).split(",")[0]}</div>
-                        <div className="font-bold text-sm">{fmtDateLong(d).split(", ")[1]}</div>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="font-mono text-[10px] text-gray-500 mt-4">Times shown in Eastern (ET). Mon–Fri only.</p>
-                </div>
-              )}
-
-              {/* STEP 2 — TIME */}
-              {step === "time" && (
-                <div>
-                  <button onClick={() => setStep("date")} className="font-mono text-[10px] uppercase tracking-widest text-gray-400 hover:text-white flex items-center gap-1 mb-3">
-                    <ArrowLeft size={12} /> {fmtDateLong(date)}
+                  <p className="text-gray-400 text-xs leading-relaxed mb-4">
+                    We&apos;ll send a 6-digit code to verify it&apos;s really you — keeps the calendar free of junk bookings.
+                  </p>
+                  <input
+                    type="email"
+                    value={email}
+                    autoFocus
+                    onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && emailOk && !busy) requestCode(); }}
+                    placeholder="you@business.ca"
+                    className="w-full bg-transparent border-2 border-white/30 px-3 py-3 font-mono text-sm focus:outline-none focus:border-[#ccff00]"
+                  />
+                  {error && <div className="font-mono text-xs text-red-400 mt-3">{error}</div>}
+                  <button
+                    onClick={requestCode}
+                    disabled={busy || !emailOk}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-[#ccff00] text-[#0a0a0a] font-mono font-bold uppercase text-xs tracking-[0.08em] px-6 py-3.5 border-2 border-white disabled:opacity-50 disabled:cursor-not-allowed hover:gap-3 transition-all"
+                  >
+                    {busy ? "Sending code…" : <>Continue <ArrowRight size={15} /></>}
                   </button>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-gray-400 mb-3 flex items-center gap-2">
-                    <Clock size={13} className="text-[#ccff00]" /> Pick a time (ET)
-                  </div>
-                  {loadingTaken ? (
-                    <div className="font-mono text-xs text-gray-500 py-6 text-center">Loading availability…</div>
-                  ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {times.map((t) => {
-                        const gone = taken.includes(t);
-                        return (
-                          <button
-                            key={t}
-                            disabled={gone}
-                            onClick={() => { setTime(t); setStep("details"); }}
-                            className={`border-2 px-2 py-2.5 font-mono text-xs font-bold transition-colors ${
-                              gone
-                                ? "border-white/10 text-gray-600 line-through cursor-not-allowed"
-                                : "border-white/30 hover:border-[#ccff00] hover:bg-[#ccff00]/10"
-                            }`}
-                          >
-                            {fmtTime(t)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* STEP 3 — DETAILS */}
+              {/* STEP 2 — CODE */}
+              {step === "code" && (
+                <div>
+                  <button onClick={() => setStep("email")} className="font-mono text-[10px] uppercase tracking-widest text-gray-400 hover:text-white flex items-center gap-1 mb-3">
+                    <ArrowLeft size={12} /> {email}
+                  </button>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-gray-400 mb-1 flex items-center gap-2">
+                    <ShieldCheck size={13} className="text-[#ccff00]" /> Enter the 6-digit code
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed mb-4">
+                    We emailed it to <span className="text-white">{email}</span>. It expires in 10 minutes.
+                  </p>
+                  <input
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={codeInput}
+                    autoFocus
+                    onChange={(e) => { setCodeInput(e.target.value.replace(/\D/g, "")); setError(""); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && codeInput.length === 6 && !busy) verifyCode(); }}
+                    placeholder="••••••"
+                    className="w-full bg-transparent border-2 border-white/30 px-3 py-3 font-mono text-2xl tracking-[0.5em] text-center focus:outline-none focus:border-[#ccff00]"
+                  />
+                  {error && <div className="font-mono text-xs text-red-400 mt-3">{error}</div>}
+                  <button
+                    onClick={verifyCode}
+                    disabled={busy || codeInput.length !== 6}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-[#ccff00] text-[#0a0a0a] font-mono font-bold uppercase text-xs tracking-[0.08em] px-6 py-3.5 border-2 border-white disabled:opacity-50 disabled:cursor-not-allowed hover:gap-3 transition-all"
+                  >
+                    {busy ? "Verifying…" : <>Verify <ArrowRight size={15} /></>}
+                  </button>
+                  <button onClick={requestCode} disabled={busy} className="mt-3 w-full font-mono text-[10px] uppercase tracking-widest text-gray-500 hover:text-white">
+                    Resend code
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 3 — SCHEDULE (calendar + times, Calendly-style two-pane) */}
+              {step === "schedule" && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-gray-400 flex items-center gap-2">
+                      <CalendarDays size={13} className="text-[#ccff00]" /> Pick a time <span className="text-gray-600">· ET</span>
+                    </div>
+                    {booker && (
+                      <span className="font-mono text-[10px] text-gray-500 flex items-center gap-1">
+                        <ShieldCheck size={11} className="text-[#ccff00]" /> {booker.email}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid sm:grid-cols-[1.35fr_1fr] gap-5">
+                    <MonthCalendar days={days} selected={date} onSelect={pickDate} />
+                    <div className="sm:border-l-2 sm:border-white/10 sm:pl-5">
+                      {!date ? (
+                        <div className="h-full grid place-items-center text-center py-8">
+                          <span className="font-mono text-[11px] text-gray-500 leading-relaxed">
+                            <Clock size={14} className="mx-auto mb-2 text-gray-600" />
+                            Select a day to see times
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="font-mono text-[10px] uppercase tracking-widest text-gray-400 mb-2.5">{fmtDateLong(date)}</div>
+                          {loadingTaken ? (
+                            <div className="font-mono text-xs text-gray-500 py-6 text-center">Loading…</div>
+                          ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-1">
+                              {times.map((t) => {
+                                const gone = taken.includes(t);
+                                return (
+                                  <button
+                                    key={t}
+                                    disabled={gone}
+                                    onClick={() => { setTime(t); setStep("details"); }}
+                                    className={`border-2 px-2 py-2.5 font-mono text-xs font-bold transition-colors ${
+                                      gone
+                                        ? "border-white/10 text-gray-600 line-through cursor-not-allowed"
+                                        : "border-white/30 hover:border-[#ccff00] hover:bg-[#ccff00]/10"
+                                    }`}
+                                  >
+                                    {fmtTime(t)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4 — DETAILS */}
               {step === "details" && (
                 <div>
-                  <button onClick={() => setStep("time")} className="font-mono text-[10px] uppercase tracking-widest text-gray-400 hover:text-white flex items-center gap-1 mb-3">
+                  <button onClick={() => setStep("schedule")} className="font-mono text-[10px] uppercase tracking-widest text-gray-400 hover:text-white flex items-center gap-1 mb-3">
                     <ArrowLeft size={12} /> {fmtDateLong(date)} · {fmtTime(time)} ET
                   </button>
                   <div className="space-y-3">
+                    <div>
+                      <label className="font-mono text-[10px] uppercase tracking-widest text-gray-400 mb-1.5 block">Email</label>
+                      <div className="flex items-center gap-2 border-2 border-white/15 px-3 py-2.5 font-mono text-sm text-gray-300">
+                        <ShieldCheck size={13} className="text-[#ccff00] flex-shrink-0" /> {email} <span className="text-[#ccff00] text-[10px] ml-auto">verified</span>
+                      </div>
+                    </div>
                     <Input label="Your name *" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Jane Doe" autoFocus />
-                    <Input label="Email *" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} placeholder="jane@business.ca" type="email" />
                     <Input label="Business" value={form.business} onChange={(v) => setForm((f) => ({ ...f, business: v }))} placeholder="Blooms & Co." />
                     <div>
                       <label className="font-mono text-[10px] uppercase tracking-widest text-gray-400 mb-1.5 block">What do you want built?</label>
@@ -220,10 +362,10 @@ export default function BookCall() {
                   {error && <div className="font-mono text-xs text-red-400 mt-3">{error}</div>}
                   <button
                     onClick={submit}
-                    disabled={submitting || !canSubmit}
+                    disabled={busy || !form.name.trim()}
                     className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-[#ccff00] text-[#0a0a0a] font-mono font-bold uppercase text-xs tracking-[0.08em] px-6 py-3.5 border-2 border-white disabled:opacity-50 disabled:cursor-not-allowed hover:gap-3 transition-all"
                   >
-                    {submitting ? "Booking…" : <>Confirm booking <ArrowRight size={15} /></>}
+                    {busy ? "Booking…" : <>Confirm booking <ArrowRight size={15} /></>}
                   </button>
                 </div>
               )}
@@ -257,7 +399,7 @@ export default function BookCall() {
                     </button>
                   </div>
                   <p className="text-gray-500 text-[11px] leading-relaxed mb-5">
-                    We&apos;ll also reach out at <span className="text-gray-300">{form.email}</span> to confirm.
+                    A confirmation is on its way to <span className="text-gray-300">{email}</span>.
                   </p>
                   <button onClick={close} className="font-mono text-xs font-bold uppercase tracking-[0.08em] border-2 border-white px-6 py-3 hover:bg-white hover:text-[#0a0a0a] transition-colors">
                     Done
@@ -269,6 +411,83 @@ export default function BookCall() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/* ── month-grid calendar (the Calendly-style silhouette, GES-brutalist) ── */
+function MonthCalendar({
+  days, selected, onSelect,
+}: {
+  days: string[];          // bookable dates, YYYY-MM-DD
+  selected: string;
+  onSelect: (d: string) => void;
+}) {
+  const bookable = useMemo(() => new Set(days), [days]);
+  const first = days[0] ? new Date(days[0] + "T12:00:00") : new Date();
+  const last = days.length ? new Date(days[days.length - 1] + "T12:00:00") : new Date();
+  const [view, setView] = useState(() => new Date(first.getFullYear(), first.getMonth(), 1));
+
+  const monthLabel = view.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const prevOk = view > new Date(first.getFullYear(), first.getMonth(), 1);
+  const nextOk = view < new Date(last.getFullYear(), last.getMonth(), 1);
+
+  const cells: (string | null)[] = [];
+  const firstDow = new Date(view.getFullYear(), view.getMonth(), 1).getDay();
+  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(toYMD(new Date(view.getFullYear(), view.getMonth(), d)));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
+          disabled={!prevOk}
+          aria-label="Previous month"
+          className="w-8 h-8 grid place-items-center border-2 border-white/25 hover:border-[#ccff00] disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <span className="font-extrabold uppercase tracking-tight text-sm">{monthLabel}</span>
+        <button
+          onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
+          disabled={!nextOk}
+          aria-label="Next month"
+          className="w-8 h-8 grid place-items-center border-2 border-white/25 hover:border-[#ccff00] disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={15} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {WEEKDAY_LABELS.map((d) => (
+          <div key={d} className="text-center font-mono text-[9px] uppercase tracking-widest text-gray-500 py-1">{d.slice(0, 2)}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((ymd, i) =>
+          ymd === null ? (
+            <span key={`b${i}`} />
+          ) : bookable.has(ymd) ? (
+            <button
+              key={ymd}
+              onClick={() => onSelect(ymd)}
+              className={`aspect-square grid place-items-center font-mono text-xs font-bold border-2 transition-colors ${
+                selected === ymd
+                  ? "bg-[#ccff00] text-[#0a0a0a] border-[#ccff00]"
+                  : "border-white/25 hover:border-[#ccff00] hover:bg-[#ccff00]/10"
+              }`}
+            >
+              {Number(ymd.slice(8))}
+            </button>
+          ) : (
+            <span key={ymd} className="aspect-square grid place-items-center font-mono text-xs text-gray-700 select-none">
+              {Number(ymd.slice(8))}
+            </span>
+          )
+        )}
+      </div>
+    </div>
   );
 }
 

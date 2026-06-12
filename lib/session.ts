@@ -3,12 +3,13 @@ import { createHmac, timingSafeEqual } from "crypto";
 // Short-lived, stateless, signed tokens. No cookies, no server-side session store.
 export const PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // client preview access — 2 hours
 export const DEV_TTL_MS = 8 * 60 * 60 * 1000; // developer dashboard — 8 hours
+export const BOOKER_TTL_MS = 2 * 60 * 60 * 1000; // verified booking email — 2 hours
 
-type Purpose = "preview" | "dev";
+type Purpose = "preview" | "dev" | "booker";
 
 interface Payload {
   p: Purpose;
-  sub: string; // preview → client slug; dev → "dev"
+  sub: string; // preview → client slug; dev → "dev"; booker → verified email
   exp: number; // epoch ms
 }
 

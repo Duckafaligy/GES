@@ -3,7 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { isSlotBookable, isBookableDate, etToUtc, MEETING_MINUTES } from "@/lib/booking";
 import { getBookingSettings } from "@/lib/settings";
 import { createBookingEvent } from "@/lib/gcal";
-import { sendBookingEmail } from "@/lib/email";
+import { emailConfigured, sendBookingEmail, sendBookingConfirmation } from "@/lib/email";
+import { verifyToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -29,15 +30,30 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/book → create a booking.
+// POST /api/book → create a booking. When the email system is configured the
+// caller must hold a "booker" token (issued by /api/signup/verify after the
+// 6-digit email code), and the booking's email comes from that token — so every
+// booking is tied to a PROVEN inbox.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const name = String(body?.name ?? "").trim();
-  const email = String(body?.email ?? "").trim();
   const business = String(body?.business ?? "").trim() || null;
   const notes = String(body?.notes ?? "").trim() || null;
   const slot_date = String(body?.slot_date ?? "").trim();
   const slot_time = String(body?.slot_time ?? "").trim();
+
+  let email: string;
+  if (emailConfigured()) {
+    const m = (req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
+    const payload = m ? verifyToken(m[1], "booker") : null;
+    if (!payload) {
+      return NextResponse.json({ error: "Please verify your email first." }, { status: 401 });
+    }
+    email = payload.sub;
+  } else {
+    // No email system → no way to verify; accept the typed email ungated.
+    email = String(body?.email ?? "").trim().toLowerCase();
+  }
 
   if (!name) return NextResponse.json({ error: "Please enter your name." }, { status: 400 });
   if (!EMAIL_RE.test(email)) return NextResponse.json({ error: "Please enter a valid email." }, { status: 400 });
@@ -73,6 +89,7 @@ export async function POST(req: NextRequest) {
       const end = new Date(start.getTime() + MEETING_MINUTES * 60000);
       await Promise.allSettled([
         sendBookingEmail({ name, email, business, notes, slot_date, slot_time }),
+        sendBookingConfirmation({ name, email, business, notes, slot_date, slot_time }),
         createBookingEvent({ name, email, business, notes, startISO: start.toISOString(), endISO: end.toISOString() }),
       ]);
     } catch (e) {

@@ -258,6 +258,19 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 ## Recent changes
 
 ### v0.8.0 — on-site booking + dashboard leads
+- **Calendly-style calendar + email sign-up gate.** The booking modal is now a
+  real **month-grid calendar** (two-pane: calendar left, ET times right; bookable
+  days outlined, selected day acid, off days dimmed). Before scheduling, a
+  prospect must **verify their email**: enter it → we email a 6-digit code
+  (`/api/signup`) → verify (`/api/signup/verify`) → they get a one-time
+  **welcome email** and a short-lived signed booker token that `/api/book` now
+  requires — so every booking is tied to a proven inbox (no junk bookings). On
+  booking, the prospect also gets a **confirmation email with the .ics attached**.
+  Verified state persists for the session (`booking_signups` table, v5 migration).
+  ⚠ Codes/welcome/confirmation emails reach **any** address only once a domain is
+  verified in Resend; on the shared sandbox sender they only reach the account
+  owner. If Resend isn't configured at all, the gate disables itself so booking
+  still works.
 - **Availability settings.** A dashboard **Availability** panel controls which
   weekdays + time slots are bookable, blocks specific dates (vacations), and sets
   how many days ahead to show. The modal reads it from `/api/availability`; the

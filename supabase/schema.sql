@@ -72,6 +72,18 @@ create table if not exists public.booking_settings (
 insert into public.booking_settings (id) values (1) on conflict (id) do nothing;
 alter table public.booking_settings enable row level security;
 
--- 6) No demo seed. Create real clients from the developer dashboard
+-- 6) Booking email sign-ups — prospects verify their email (6-digit code) before
+--    they can book, which filters junk bookings. Welcome email sent on first verify.
+create table if not exists public.booking_signups (
+  email           text primary key,
+  code_hash       text,
+  code_expires_at timestamptz,
+  verified_at     timestamptz,
+  welcome_sent_at timestamptz,
+  created_at      timestamptz not null default now()
+);
+alter table public.booking_signups enable row level security;
+
+-- 7) No demo seed. Create real clients from the developer dashboard
 --    (/Developer-Dashboard-Page) — it generates a 64-char access code and stores
 --    only its SHA-256 hash. (Or use scripts/add-client.mjs.)
