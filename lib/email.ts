@@ -88,9 +88,13 @@ export async function sendWelcomeEmail(to: string): Promise<void> {
 }
 
 /** Booking confirmation for the PROSPECT (with .ics attached). Best-effort. */
-export async function sendBookingConfirmation(b: BookingInfo): Promise<void> {
+export async function sendBookingConfirmation(b: BookingInfo, manageUrl?: string): Promise<void> {
   const when = `${fmtDateFull(b.slot_date)} · ${fmtTime(b.slot_time)} ET`;
   const ics = buildIcs(b.name, b.email, b.slot_date, b.slot_time, b.notes ?? undefined);
+  const manage = manageUrl
+    ? `<p style="margin:18px 0 0"><a href="${manageUrl}" style="display:inline-block;background:#ccff00;color:#0a0a0a;font:700 13px/1 system-ui;text-decoration:none;padding:12px 18px;border:2px solid #0a0a0a">Reschedule or cancel →</a></p>
+       <p style="color:#999;font:11px/1.6 system-ui;margin:10px 0 0">Plans change — manage your booking anytime with that link.</p>`
+    : `<p style="color:#999;font:12px/1.6 system-ui;margin:0">Need to change it? Just reply to this email.</p>`;
   await sendViaResend({
     to: b.email,
     subject: `You're booked — GES discovery call · ${when}`,
@@ -98,7 +102,7 @@ export async function sendBookingConfirmation(b: BookingInfo): Promise<void> {
       "You're booked",
       `<p style="color:#111;font:800 20px/1.3 system-ui;margin:0 0 6px">${when}</p>
        <p style="color:#444;font:14px/1.7 system-ui;margin:0 0 12px">Your 30-minute discovery call with GES is confirmed, ${b.name}. The attached invite adds it to your calendar with a reminder.</p>
-       <p style="color:#999;font:12px/1.6 system-ui;margin:0">Need to change it? Just reply to this email.</p>`
+       ${manage}`
     ),
     attachments: [{ filename: "ges-discovery-call.ics", content: Buffer.from(ics).toString("base64") }],
   });

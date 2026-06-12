@@ -4,7 +4,7 @@ import { isSlotBookable, isBookableDate, etToUtc, MEETING_MINUTES } from "@/lib/
 import { getBookingSettings } from "@/lib/settings";
 import { createBookingEvent } from "@/lib/gcal";
 import { emailConfigured, sendBookingEmail, sendBookingConfirmation } from "@/lib/email";
-import { verifyToken } from "@/lib/session";
+import { verifyToken, signToken, MANAGE_TTL_MS } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -87,9 +87,11 @@ export async function POST(req: NextRequest) {
     try {
       const start = etToUtc(slot_date, slot_time);
       const end = new Date(start.getTime() + MEETING_MINUTES * 60000);
+      const manageToken = signToken("manage", (data as { id: string }).id, MANAGE_TTL_MS);
+      const manageUrl = `${req.nextUrl.origin}/booking/${manageToken}`;
       await Promise.allSettled([
         sendBookingEmail({ name, email, business, notes, slot_date, slot_time }),
-        sendBookingConfirmation({ name, email, business, notes, slot_date, slot_time }),
+        sendBookingConfirmation({ name, email, business, notes, slot_date, slot_time }, manageUrl),
         createBookingEvent({ name, email, business, notes, startISO: start.toISOString(), endISO: end.toISOString() }),
       ]);
     } catch (e) {

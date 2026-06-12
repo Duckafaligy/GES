@@ -53,10 +53,12 @@ create table if not exists public.bookings (
   slot_date  date not null,            -- YYYY-MM-DD
   slot_time  text not null,            -- "14:00" (Eastern)
   status     text not null default 'new' check (status in ('new','done','cancelled')),
-  created_at timestamptz not null default now(),
-  unique (slot_date, slot_time)        -- one meeting per slot (no double-booking)
+  created_at timestamptz not null default now()
 );
 create index if not exists bookings_slot_idx on public.bookings (slot_date, slot_time);
+-- One ACTIVE meeting per slot (cancelled rows free the slot for re-booking).
+create unique index if not exists bookings_active_slot_idx
+  on public.bookings (slot_date, slot_time) where status <> 'cancelled';
 alter table public.bookings enable row level security;
 
 -- 5) Booking availability settings (single row id=1) — which weekdays/times are

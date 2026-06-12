@@ -4,12 +4,13 @@ import { createHmac, timingSafeEqual } from "crypto";
 export const PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // client preview access — 2 hours
 export const DEV_TTL_MS = 8 * 60 * 60 * 1000; // developer dashboard — 8 hours
 export const BOOKER_TTL_MS = 2 * 60 * 60 * 1000; // verified booking email — 2 hours
+export const MANAGE_TTL_MS = 60 * 24 * 60 * 60 * 1000; // booking manage link — 60 days
 
-type Purpose = "preview" | "dev" | "booker";
+type Purpose = "preview" | "dev" | "booker" | "manage";
 
 interface Payload {
   p: Purpose;
-  sub: string; // preview → client slug; dev → "dev"; booker → verified email
+  sub: string; // preview → slug; dev → "dev"; booker → email; manage → booking id
   exp: number; // epoch ms
 }
 

@@ -69,6 +69,7 @@ components/
   Process.tsx         Process / how-we-work timeline
   Contact.tsx         Contact + "Book a discovery call" trigger
   BookCall.tsx        Branded booking flow (email-verify → month calendar → details → confirm). Modal on the `ges:book` event, AND `<BookCall inline />` renders it as a section above the footer
+  MonthCalendar.tsx   Calendly-style month grid (shared by the booking flow + the manage page)
   ScrollProgress.tsx  Spring scroll-progress bar (bottom edge)
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
@@ -81,7 +82,8 @@ lib/session.ts        HMAC-signed, short-lived access tokens (no cookies)
 lib/devAuth.ts        Bearer-token guard for the developer dashboard
 app/api/verify-code/  Access code → short-lived preview token (+ logs the view)
 app/api/preview-meta/ Public, non-sensitive gate personalization (business name + ready, by slug)
-app/api/book/         Public: GET taken slots for a day · POST a discovery-call booking
+app/api/book/         Public: GET taken slots · POST a booking · manage/ (cancel/reschedule by token)
+app/booking/[token]/  Self-serve manage page — reschedule or cancel from the email link
 app/api/dev/          Dashboard auth + client CRUD + uploads + preview-token + zip download + analytics + bookings (Bearer-gated)
 app/Developer-Dashboard-Page/   Password-gated dashboard (bookings, clients, per-client preview/upload/analytics)
 supabase/schema.sql   Full DB schema (clients + client_views + bookings) + private storage bucket
@@ -289,6 +291,11 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
   env vars are set, every booking emails you the lead's details + an `.ics`
   attachment (`lib/email.ts`, one fetch, no SDK) — no domain verification needed
   to email yourself. Best-effort, never blocks the booking.
+- **Self-serve reschedule / cancel.** The confirmation email carries a signed
+  manage link (`/booking/<token>`, 60-day token) where the prospect can cancel
+  (frees the slot) or reschedule via the same calendar — `app/api/book/manage`.
+  A partial unique index (v6 migration) means cancelled slots open back up while
+  active double-booking is still blocked.
 - **Calendar everywhere.** Confirmation offers "Add to Google Calendar" + an
   `.ics` (Apple/Outlook) with a reminder, GES added as a guest. And if the
   Google service-account env vars are set (`GOOGLE_SERVICE_ACCOUNT_EMAIL` /
