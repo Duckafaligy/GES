@@ -406,7 +406,7 @@ export default function BookCall({ inline = false }: { inline?: boolean }) {
       <section id="book" className="sec-dark py-24 border-t-2 border-[var(--line)]">
         <div className="max-w-6xl mx-auto px-5">
           <div className="flex items-center gap-4 mb-10 border-b-2 border-[var(--line)] pb-4">
-            <span className="eyebrow">07 / Book</span>
+            <span className="eyebrow">08 / Book</span>
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
             <span className="eyebrow text-[var(--amber)]">Free · 30 min</span>
           </div>

@@ -7,6 +7,7 @@ import Services from "@/components/Services";
 import Pricing from "@/components/Pricing";
 import ThreeDFeatures from "@/components/ThreeDFeatures";
 import Process from "@/components/Process";
+import Work from "@/components/Work";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
 
@@ -23,6 +24,7 @@ export default function Home() {
         <Pricing />
         <ThreeDFeatures />
         <Process />
+        <Work />
         <Contact />
         <BookCall inline />
       </main>
