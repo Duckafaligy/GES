@@ -32,7 +32,7 @@ export default function Work() {
       <div className="max-w-6xl mx-auto px-5">
         {/* Section header */}
         <div className="flex items-center gap-4 mb-12 border-b-2 border-[var(--line)] pb-4">
-          <span className="eyebrow">06 / Work</span>
+          <span className="eyebrow">05 / Work</span>
           <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
           <span className="eyebrow text-[var(--amber)]">Selected Builds</span>
         </div>

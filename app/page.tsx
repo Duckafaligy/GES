@@ -23,8 +23,8 @@ export default function Home() {
         <Services />
         <Pricing />
         <ThreeDFeatures />
-        <Process />
         <Work />
+        <Process />
         <Contact />
         <BookCall inline />
       </main>

@@ -47,7 +47,7 @@ export default function Process() {
       <div className="max-w-5xl mx-auto px-5">
         {/* Section header bar */}
         <div className="flex items-center gap-4 mb-12 border-b-2 border-[var(--line)] pb-4">
-          <span className="eyebrow">05 / Process</span>
+          <span className="eyebrow">06 / Process</span>
           <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
           <span className="eyebrow text-[var(--muted)]">How It Works</span>
         </div>
