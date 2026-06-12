@@ -16,6 +16,7 @@ const linkGroups: { heading: string; items: FooterLink[] }[] = [
     items: [
       { label: "Ownership", href: "/#ownership" },
       { label: "Our Process", href: "/#process" },
+      { label: "FAQ", href: "/faq" },
       { label: "Client Portal", href: "/login" },
     ],
   },

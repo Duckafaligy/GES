@@ -57,7 +57,7 @@ app/
   api/                Route handlers (server-side endpoints)
   (site)/             Route group: standalone content pages (footer Services + Legal links); its layout renders a solid nav + the footer
     services/{local-business-sites,e-commerce-websites,3d-product-models}/
-    privacy-policy/ , terms-of-service/
+    privacy-policy/ , terms-of-service/ , faq/ (blog-style FAQ hub)
 components/
   Navigation.tsx      Sticky top nav + marquee ticker; `forceSolid` mode for light pages + logo routes to the first section
   VideoHero.tsx       Full-bleed background hero video with a self-learning seamless loop
@@ -73,6 +73,7 @@ components/
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
   LegalDoc.tsx        Data-driven layout for the legal pages (Privacy Policy, Terms of Service)
+  FaqDoc.tsx          Data-driven, accordion FAQ page (the /faq "resources" hub)
 lib/clients.ts        Client model + lookup (by code / by slug) + view tracking
 lib/booking.ts        Shared booking slots/date helpers (used by the modal AND the API)
 lib/supabase.ts       Server-only Supabase service-role client (lazy)
