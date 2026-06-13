@@ -1,7 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useRef } from "react";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import CountUp from "@/components/CountUp";
 
 interface Project {
   name: string;
@@ -89,49 +91,7 @@ export default function Work() {
         {/* Project cards */}
         <div className="grid md:grid-cols-2 gap-7">
           {PROJECTS.map((p, i) => (
-            <motion.a
-              key={p.name}
-              href={p.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.5, delay: i * 0.08 }}
-              className="hard lift bg-[var(--bg)] group block overflow-hidden"
-            >
-              <div className="border-b-2 border-[var(--line)] overflow-hidden relative">
-                <span
-                  className={`absolute top-3 left-3 z-10 mono text-[10px] uppercase tracking-[0.14em] px-2 py-1 border-2 inline-flex items-center gap-1.5 ${
-                    p.live
-                      ? "bg-[#0a0a0a] text-[var(--acid)] border-[var(--acid)]"
-                      : "bg-[#0a0a0a] text-[var(--amber)] border-[var(--amber)]"
-                  }`}
-                >
-                  {p.live && <span className="w-1.5 h-1.5 rounded-full bg-[var(--acid)]" />}
-                  {p.status}
-                </span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.img}
-                  alt={`${p.name} — built by GES`}
-                  loading="lazy"
-                  className="w-full aspect-[16/10] object-cover object-top group-hover:scale-[1.03] transition-transform duration-500"
-                />
-              </div>
-              <div className="p-6">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="mono text-[10px] uppercase tracking-[0.16em] bg-[var(--acid)] text-[#0a0a0a] px-2 py-0.5 font-bold">{p.tag}</span>
-                  <ArrowUpRight size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </div>
-                <div className="font-extrabold uppercase tracking-tight text-lg leading-tight mb-2">{p.name}</div>
-                <p className="text-[var(--muted)] text-sm leading-relaxed mb-4">{p.blurb}</p>
-                <div className="flex items-baseline justify-between border-t-2 border-[var(--line)]/30 pt-3">
-                  <span className="eyebrow text-[var(--muted)]">Est. build value</span>
-                  <span className="display text-2xl text-[var(--acid)]">≈ {money(p.price)}</span>
-                </div>
-              </div>
-            </motion.a>
+            <ProjectCard key={p.name} p={p} i={i} />
           ))}
         </div>
 
@@ -154,7 +114,7 @@ export default function Work() {
               >
                 <div className="flex items-baseline justify-between mb-4">
                   <span className="font-extrabold uppercase tracking-tight">{p.short}</span>
-                  <span className="display text-3xl text-[var(--acid)]">≈ {money(p.price)}</span>
+                  <span className="display text-3xl text-[var(--acid)]">≈ <CountUp value={p.price} prefix="$" /></span>
                 </div>
                 <div className="space-y-2.5">
                   {p.breakdown.map((b) => (
@@ -176,5 +136,72 @@ export default function Work() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Project card with a subtle pointer-driven 3D tilt (skipped for reduced-motion). */
+function ProjectCard({ p, i }: { p: Project; i: number }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  const mx = useMotionValue(0); // -0.5 … 0.5 across the card
+  const my = useMotionValue(0);
+  const rotateX = useSpring(useTransform(my, [-0.5, 0.5], [6, -6]), { stiffness: 250, damping: 20 });
+  const rotateY = useSpring(useTransform(mx, [-0.5, 0.5], [-6, 6]), { stiffness: 250, damping: 20 });
+
+  function onMove(e: React.MouseEvent) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    mx.set((e.clientX - r.left) / r.width - 0.5);
+    my.set((e.clientY - r.top) / r.height - 0.5);
+  }
+  function reset() { mx.set(0); my.set(0); }
+
+  return (
+    <motion.a
+      ref={ref}
+      href={p.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onMouseMove={onMove}
+      onMouseLeave={reset}
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.5, delay: i * 0.08 }}
+      style={{ rotateX, rotateY, transformPerspective: 900, transformStyle: "preserve-3d" }}
+      className="hard lift bg-[var(--bg)] group block overflow-hidden"
+    >
+      <div className="border-b-2 border-[var(--line)] overflow-hidden relative">
+        <span
+          className={`absolute top-3 left-3 z-10 mono text-[10px] uppercase tracking-[0.14em] px-2 py-1 border-2 inline-flex items-center gap-1.5 ${
+            p.live
+              ? "bg-[#0a0a0a] text-[var(--acid)] border-[var(--acid)]"
+              : "bg-[#0a0a0a] text-[var(--amber)] border-[var(--amber)]"
+          }`}
+        >
+          {p.live && <span className="w-1.5 h-1.5 rounded-full bg-[var(--acid)]" />}
+          {p.status}
+        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={p.img}
+          alt={`${p.name} — built by GES`}
+          loading="lazy"
+          className="w-full aspect-[16/10] object-cover object-top group-hover:scale-[1.03] transition-transform duration-500"
+        />
+      </div>
+      <div className="p-6">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span className="mono text-[10px] uppercase tracking-[0.16em] bg-[var(--acid)] text-[#0a0a0a] px-2 py-0.5 font-bold">{p.tag}</span>
+          <ArrowUpRight size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+        </div>
+        <div className="font-extrabold uppercase tracking-tight text-lg leading-tight mb-2">{p.name}</div>
+        <p className="text-[var(--muted)] text-sm leading-relaxed mb-4">{p.blurb}</p>
+        <div className="flex items-baseline justify-between border-t-2 border-[var(--line)]/30 pt-3">
+          <span className="eyebrow text-[var(--muted)]">Est. build value</span>
+          <span className="display text-2xl text-[var(--acid)]">≈ <CountUp value={p.price} prefix="$" /></span>
+        </div>
+      </div>
+    </motion.a>
   );
 }
