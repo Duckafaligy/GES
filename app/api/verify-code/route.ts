@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findClientByCode, recordPreviewView } from "@/lib/clients";
 import { signToken, PREVIEW_TTL_MS } from "@/lib/session";
+import { checkLock, registerFailure, registerSuccess, clientIp } from "@/lib/throttle";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = clientIp(req);
+    const lock = await checkLock("verify-code", ip);
+    if (lock.locked) {
+      return NextResponse.json({ error: lock.message }, {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(lock.retryAfterMs / 1000)) },
+      });
+    }
+
     const body = await req.json();
     const code: string = body?.code ?? "";
     const business: string = typeof body?.business === "string" ? body.business.trim() : "";
@@ -16,16 +26,24 @@ export async function POST(req: NextRequest) {
 
     const client = await findClientByCode(code);
     if (!client) {
+      const after = await registerFailure("verify-code", ip);
       return NextResponse.json(
-        { error: "Invalid access code. Please check and try again." },
-        { status: 401 }
+        { error: after.locked ? after.message : "Invalid access code. Please check and try again." },
+        { status: after.locked ? 429 : 401,
+          ...(after.locked ? { headers: { "Retry-After": String(Math.ceil(after.retryAfterMs / 1000)) } } : {}) }
       );
     }
     // When entered on a specific business preview page, the code must match it.
     if (business && client.slug !== business) {
-      return NextResponse.json({ error: "That code isn't for this preview." }, { status: 401 });
+      const after = await registerFailure("verify-code", ip);
+      return NextResponse.json(
+        { error: after.locked ? after.message : "That code isn't for this preview." },
+        { status: after.locked ? 429 : 401,
+          ...(after.locked ? { headers: { "Retry-After": String(Math.ceil(after.retryAfterMs / 1000)) } } : {}) }
+      );
     }
 
+    await registerSuccess("verify-code", ip);
     // Sales signal: the prospect actually opened their preview. Best-effort.
     await recordPreviewView(client);
 

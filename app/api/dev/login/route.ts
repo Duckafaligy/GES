@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { signToken, DEV_TTL_MS } from "@/lib/session";
+import { checkLock, registerFailure, registerSuccess, clientIp } from "@/lib/throttle";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,17 @@ function safeEqual(a: string, b: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = clientIp(req);
+
+    // Escalating lockout: bail before checking the password if this IP is locked.
+    const lock = await checkLock("dev-login", ip);
+    if (lock.locked) {
+      return NextResponse.json({ error: lock.message }, {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(lock.retryAfterMs / 1000)) },
+      });
+    }
+
     const { password, dob } = await req.json();
     const isProd = process.env.NODE_ENV === "production";
     const expectedPw = process.env.DEV_DASHBOARD_PASSWORD || (isProd ? "" : DEFAULT_DEV_PASSWORD);
@@ -41,8 +53,17 @@ export async function POST(req: NextRequest) {
 
     // Both factors must match. One generic message so neither is enumerable.
     const ok = safeEqual(password, expectedPw) && safeEqual(dob.trim(), expectedDob.trim());
-    if (!ok) return NextResponse.json({ error: "Incorrect password or date of birth." }, { status: 401 });
+    if (!ok) {
+      const after = await registerFailure("dev-login", ip);
+      // If that failure tripped a lockout, tell them how long; else the generic message.
+      return NextResponse.json(
+        { error: after.locked ? after.message : "Incorrect password or date of birth." },
+        { status: after.locked ? 429 : 401,
+          ...(after.locked ? { headers: { "Retry-After": String(Math.ceil(after.retryAfterMs / 1000)) } } : {}) }
+      );
+    }
 
+    await registerSuccess("dev-login", ip);
     // Returned to the browser and held in sessionStorage only (no cookie).
     const token = signToken("dev", "dev", DEV_TTL_MS);
     return NextResponse.json({ token });

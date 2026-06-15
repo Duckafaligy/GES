@@ -3,15 +3,23 @@ import { createHash, timingSafeEqual } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendWelcomeEmail } from "@/lib/email";
 import { signToken, BOOKER_TTL_MS } from "@/lib/session";
+import { checkLock, registerFailure, registerSuccess, clientIp } from "@/lib/throttle";
 
 export const runtime = "nodejs";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
+const lockResponse = (msg: string, ms: number) =>
+  NextResponse.json({ error: msg }, { status: 429, headers: { "Retry-After": String(Math.ceil(ms / 1000)) } });
+
 // POST /api/signup/verify { email, code } → checks the 6-digit code, sends the
 // one-time welcome email on first verification, returns a short-lived signed
 // booker token that /api/book requires.
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+  const lock = await checkLock("signup-verify", ip);
+  if (lock.locked) return lockResponse(lock.message, lock.retryAfterMs);
+
   const body = await req.json().catch(() => ({}));
   const email = String(body?.email ?? "").trim().toLowerCase();
   const code = String(body?.code ?? "").trim();
@@ -36,8 +44,11 @@ export async function POST(req: NextRequest) {
   const a = Buffer.from(sha256(code));
   const b = Buffer.from(row.code_hash);
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    const after = await registerFailure("signup-verify", ip);
+    if (after.locked) return lockResponse(after.message, after.retryAfterMs);
     return NextResponse.json({ error: "Wrong code — check the email and try again." }, { status: 401 });
   }
+  await registerSuccess("signup-verify", ip);
 
   // Mark verified, clear the used code, send the one-time welcome email.
   const firstTime = !row.verified_at;

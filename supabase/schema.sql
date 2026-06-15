@@ -86,6 +86,19 @@ create table if not exists public.booking_signups (
 );
 alter table public.booking_signups enable row level security;
 
--- 7) No demo seed. Create real clients from the developer dashboard
+-- 7) Auth lockout — Apple-style escalating per-IP throttle for the auth
+--    endpoints (dev login, signup code, access code). 5 wrong attempts → 1m
+--    lock; each further wrong attempt escalates (5m → 15m → 60m). Keyed by
+--    "<scope>:<ip>"; a successful auth clears the row. See lib/throttle.ts.
+create table if not exists public.auth_throttle (
+  id          text primary key,
+  fails       int  not null default 0,
+  lock_level  int  not null default 0,
+  lock_until  timestamptz,
+  updated_at  timestamptz not null default now()
+);
+alter table public.auth_throttle enable row level security;
+
+-- 8) No demo seed. Create real clients from the developer dashboard
 --    (/Developer-Dashboard-Page) — it generates a 64-char access code and stores
 --    only its SHA-256 hash. (Or use scripts/add-client.mjs.)

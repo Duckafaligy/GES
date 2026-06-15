@@ -91,7 +91,8 @@ app/Developer-Dashboard-Page/   Password-gated dashboard (bookings, clients, per
 supabase/schema.sql   Full DB schema (clients + client_views + bookings) + private storage bucket
 lib/settings.ts       Booking availability settings (read/write, defaults if unmigrated)
 app/api/availability/ Public: bookable days + time slots for the modal
-supabase/migrations/  Incremental SQL for existing DBs (v2-analytics-and-codes, v3-bookings, v4-availability, v5-signups, v6-booking-manage)
+supabase/migrations/  Incremental SQL for existing DBs (v2-analytics-and-codes, v3-bookings, v4-availability, v5-signups, v6-booking-manage, v7-auth-throttle)
+lib/throttle.ts       Apple-style escalating per-IP auth lockout (auth_throttle table)
 scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
@@ -261,6 +262,19 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
 ## Recent changes
+
+### v0.10.0 — Apple-style auth lockout
+- **Escalating per-IP lockout** on the auth endpoints (dashboard login, booking
+  signup code, and client access code). After **5 wrong attempts** an IP is
+  locked **1 minute**; each further wrong attempt escalates — **5m → 15m → 60m**
+  (capped). A successful auth clears the record. Locked requests get a `429` with
+  a `Retry-After` header and a friendly "try again in N minutes" message.
+- Backed by a DB table (`auth_throttle`, **v7 migration**) keyed by
+  `"<scope>:<ip>"`, so the lockout holds across serverless instances and cold
+  starts — not just per-process memory. Logic lives in `lib/throttle.ts`
+  (`checkLock` before the credential check, `registerFailure` after a miss,
+  `registerSuccess` on success). **Fails open** until the v7 migration is run, so
+  nothing breaks pre-migration — run it to activate the protection.
 
 ### v0.9.0 — Selected Work, FAQ hub, landing polish
 - **Selected Work section.** Two real builds front-and-center: **CLIME**
