@@ -1,0 +1,123 @@
+<!--
+  GES client-preview INTERACTIONS reference — copy-ready, self-contained,
+  reduced-motion-aware patterns. Lift what fits, restyle to the brand, inline it.
+  No libraries. All JS is vanilla and namespaced or scoped.
+  Put `@media (prefers-reduced-motion: reduce){ .reveal{opacity:1;transform:none;transition:none} }`
+  in your CSS so motion neutralizes cleanly.
+-->
+
+<!-- ============ 1. SCROLL REVEAL ============ -->
+<style>
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .8s cubic-bezier(.22,.61,.36,1),transform .8s cubic-bezier(.22,.61,.36,1)}
+  .reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+</style>
+<script>
+  (function(){var els=document.querySelectorAll('.reveal');
+    if('IntersectionObserver'in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12,rootMargin:'0px 0px -40px 0px'});els.forEach(function(el){io.observe(el)})}
+    else els.forEach(function(el){el.classList.add('in')});})();
+</script>
+
+<!-- ============ 2. ANIMATED COUNT-UP (data-count="2000") ============ -->
+<span class="count" data-count="1200" data-prefix="$">0</span>
+<script>
+  (function(){var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+    function run(el){var to=+el.dataset.count,pre=el.dataset.prefix||'',suf=el.dataset.suffix||'';
+      if(reduce){el.textContent=pre+to.toLocaleString()+suf;return;}
+      var t0=performance.now(),d=1200;(function tick(t){var p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);
+        el.textContent=pre+Math.round(to*e).toLocaleString()+suf;if(p<1)requestAnimationFrame(tick)})(t0);}
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){run(e.target);io.unobserve(e.target)}})},{threshold:.5});
+    document.querySelectorAll('.count').forEach(function(el){io.observe(el)});})();
+</script>
+
+<!-- ============ 3. STICKY CONDENSING HEADER ============ -->
+<style>
+  .nav{position:sticky;top:0;z-index:50;transition:padding .3s,box-shadow .3s,background .3s}
+  .nav.is-stuck{padding-top:8px;padding-bottom:8px;box-shadow:0 10px 30px -22px rgba(0,0,0,.5)}
+</style>
+<script>
+  (function(){var n=document.querySelector('.nav');if(!n)return;
+    var on=function(){n.classList.toggle('is-stuck',scrollY>24)};addEventListener('scroll',on,{passive:true});on();})();
+</script>
+
+<!-- ============ 4. MOBILE MENU (toggle .open on the links container) ============ -->
+<button class="navToggle" aria-label="Menu" aria-expanded="false"><span></span><span></span></button>
+<script>
+  (function(){var t=document.querySelector('.navToggle'),m=document.querySelector('.nav nav');if(!t||!m)return;
+    t.addEventListener('click',function(){var o=m.classList.toggle('open');t.setAttribute('aria-expanded',o)});
+    m.addEventListener('click',function(e){if(e.target.tagName==='A'){m.classList.remove('open');t.setAttribute('aria-expanded',false)}});})();
+</script>
+
+<!-- ============ 5. STICKY MOBILE "BOOK" BAR ============ -->
+<style>
+  .bookbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:none;gap:12px;align-items:center;justify-content:space-between;
+    padding:12px 18px;background:var(--ink,#111);color:#fff;box-shadow:0 -8px 24px -16px rgba(0,0,0,.6)}
+  @media(max-width:760px){.bookbar{display:flex}}
+</style>
+<div class="bookbar"><span>Free consultation</span><a class="pill" href="#book">Book now</a></div>
+
+<!-- ============ 6. ACCORDION (FAQ) ============ -->
+<style>
+  .acc{border-top:1px solid var(--line,#e5e5e5)}
+  .acc__q{width:100%;text-align:left;background:none;border:0;padding:20px 0;font:inherit;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;gap:16px;align-items:center}
+  .acc__q .pl{transition:transform .3s}
+  .acc__q[aria-expanded="true"] .pl{transform:rotate(45deg)}
+  .acc__a{overflow:hidden;max-height:0;transition:max-height .35s ease}
+  .acc__a > div{padding:0 0 20px;color:var(--muted,#666)}
+</style>
+<div class="acc">
+  <button class="acc__q" aria-expanded="false">How long does it take? <span class="pl">+</span></button>
+  <div class="acc__a"><div>Real answer for the trade goes here.</div></div>
+</div>
+<script>
+  (function(){document.querySelectorAll('.acc__q').forEach(function(q){q.addEventListener('click',function(){
+    var open=q.getAttribute('aria-expanded')==='true',a=q.nextElementSibling;
+    q.setAttribute('aria-expanded',!open);a.style.maxHeight=open?0:a.scrollHeight+'px';})});})();
+</script>
+
+<!-- ============ 7. TABS / FILTER (data-tab + data-panel) ============ -->
+<style>.tab[aria-selected="true"]{background:var(--ink,#111);color:#fff}.panel{display:none}.panel.show{display:block}</style>
+<script>
+  (function(){var tabs=document.querySelectorAll('.tab');tabs.forEach(function(t){t.addEventListener('click',function(){
+    tabs.forEach(function(x){x.setAttribute('aria-selected',false)});t.setAttribute('aria-selected',true);
+    document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('show',p.dataset.panel===t.dataset.tab)});})});})();
+</script>
+
+<!-- ============ 8. LIGHTBOX (wrap items in .lb, give each a data-cap) ============ -->
+<style>
+  .lbox{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:rgba(0,0,0,.86);padding:24px}
+  .lbox.show{display:grid}.lbox figure{max-width:900px}.lbox .art{width:min(86vw,820px);aspect-ratio:4/3;border-radius:6px}
+  .lbox figcaption{color:#fff;text-align:center;margin-top:14px;font-style:italic}
+  .lbox .x{position:fixed;top:18px;right:22px;color:#fff;font-size:28px;background:none;border:0;cursor:pointer}
+</style>
+<div class="lbox" id="lbox"><button class="x" aria-label="Close">×</button><figure><div class="art" id="lbArt"></div><figcaption id="lbCap"></figcaption></figure></div>
+<script>
+  (function(){var box=document.getElementById('lbox'),art=document.getElementById('lbArt'),cap=document.getElementById('lbCap');if(!box)return;
+    function close(){box.classList.remove('show')}
+    document.querySelectorAll('.lb').forEach(function(it){it.style.cursor='zoom-in';it.addEventListener('click',function(){
+      art.style.background=getComputedStyle(it).background;cap.textContent=it.dataset.cap||'';box.classList.add('show')})});
+    box.addEventListener('click',function(e){if(e.target===box||e.target.classList.contains('x'))close()});
+    addEventListener('keydown',function(e){if(e.key==='Escape')close()});})();
+</script>
+
+<!-- ============ 9. BEFORE / AFTER SLIDER (great for beauty, reno, design) ============ -->
+<style>
+  .ba{position:relative;aspect-ratio:4/3;border-radius:6px;overflow:hidden;touch-action:none;user-select:none}
+  .ba__after{position:absolute;inset:0}
+  .ba__before{position:absolute;inset:0;width:50%;overflow:hidden;border-right:2px solid #fff}
+  .ba__h{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff;transform:translateX(-1px)}
+  .ba__h::after{content:"";position:absolute;top:50%;left:50%;width:34px;height:34px;transform:translate(-50%,-50%);border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+  .ba__lbl{position:absolute;bottom:10px;font:600 11px/1 sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.4);padding:5px 9px;border-radius:4px}
+</style>
+<div class="ba" id="ba">
+  <div class="ba__after" style="background:linear-gradient(135deg,#caa,#733)"></div>
+  <div class="ba__before" id="baBefore"><div style="position:absolute;inset:0;background:linear-gradient(135deg,#ddd,#888)"></div></div>
+  <div class="ba__h" id="baH"></div>
+  <span class="ba__lbl" style="left:10px">Before</span><span class="ba__lbl" style="right:10px">After</span>
+</div>
+<script>
+  (function(){var el=document.getElementById('ba');if(!el)return;var b=document.getElementById('baBefore'),h=document.getElementById('baH');
+    function set(x){var r=el.getBoundingClientRect();var p=Math.max(0,Math.min(1,(x-r.left)/r.width));b.style.width=(p*100)+'%';h.style.left=(p*100)+'%'}
+    var drag=false;el.addEventListener('pointerdown',function(e){drag=true;set(e.clientX)});
+    addEventListener('pointermove',function(e){if(drag)set(e.clientX)});addEventListener('pointerup',function(){drag=false});})();
+</script>
