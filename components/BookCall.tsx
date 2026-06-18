@@ -209,7 +209,7 @@ export default function BookCall({ inline = false }: { inline?: boolean }) {
                   <input
                     type="email"
                     value={email}
-                    autoFocus
+                    autoFocus={!inline}
                     onChange={(e) => { setEmail(e.target.value); setError(""); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && emailOk && !busy) requestCode(); }}
                     placeholder="you@business.ca"
@@ -242,7 +242,7 @@ export default function BookCall({ inline = false }: { inline?: boolean }) {
                     inputMode="numeric"
                     maxLength={6}
                     value={codeInput}
-                    autoFocus
+                    autoFocus={!inline}
                     onChange={(e) => { setCodeInput(e.target.value.replace(/\D/g, "")); setError(""); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && codeInput.length === 6 && !busy) verifyCode(); }}
                     placeholder="••••••"
@@ -331,7 +331,7 @@ export default function BookCall({ inline = false }: { inline?: boolean }) {
                         <ShieldCheck size={13} className="text-[#ccff00] flex-shrink-0" /> {email} <span className="text-[#ccff00] text-[10px] ml-auto">verified</span>
                       </div>
                     </div>
-                    <Input label="Your name *" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Jane Doe" autoFocus />
+                    <Input label="Your name *" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Jane Doe" autoFocus={!inline} />
                     <Input label="Business" value={form.business} onChange={(v) => setForm((f) => ({ ...f, business: v }))} placeholder="Blooms & Co." />
                     <div>
                       <label className="font-mono text-[10px] uppercase tracking-widest text-gray-400 mb-1.5 block">What do you want built?</label>
