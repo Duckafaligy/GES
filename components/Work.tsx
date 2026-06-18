@@ -29,12 +29,12 @@ const PROJECTS: Project[] = [
     img: "/portfolio/clime.png",
     blurb:
       "A full e-commerce concept build — cinematic product hero, interactive device showcase, and a pre-order flow. A demo (not a live store), built to show exactly what we ship.",
-    price: 2200,
+    price: 3200,
     breakdown: [
-      { item: "Base e-commerce build", cost: 1000 },
-      { item: "Cinematic 3D product hero", cost: 700 },
-      { item: "Scroll-driven animation", cost: 200 },
-      { item: "Product pages (×6)", cost: 300 },
+      { item: "Base e-commerce build", cost: 1400 },
+      { item: "Cinematic 3D product hero", cost: 1000 },
+      { item: "Scroll-driven animation", cost: 400 },
+      { item: "Product pages (×6)", cost: 400 },
     ],
   },
   {
@@ -47,11 +47,11 @@ const PROJECTS: Project[] = [
     img: "/portfolio/otdp.png",
     blurb:
       "A real, live platform for an Ontario organization — free multilingual study help for students, with fast onboarding and conversion-first sign-up.",
-    price: 1400,
+    price: 2200,
     breakdown: [
-      { item: "Base platform build", cost: 1000 },
-      { item: "Extra pages (×8)", cost: 200 },
-      { item: "Custom onboarding & flows", cost: 200 },
+      { item: "Base platform build", cost: 1500 },
+      { item: "Extra pages (×8)", cost: 350 },
+      { item: "Custom onboarding & flows", cost: 350 },
     ],
   },
   {
@@ -64,12 +64,12 @@ const PROJECTS: Project[] = [
     img: "/portfolio/launchvault.png",
     blurb:
       "A live AI-learning SaaS — “Your AI Mastery Engine.” Turns the firehose of AI into a ranked daily feed of prompts, agents and courses across 50 domains, with accounts and Stripe subscriptions.",
-    price: 4800,
+    price: 6500,
     breakdown: [
-      { item: "Platform & design system", cost: 1500 },
-      { item: "Auth + Stripe subscriptions", cost: 1200 },
-      { item: "Dynamic content engine (ranked feed)", cost: 1400 },
-      { item: "Pricing / Stories / onboarding", cost: 700 },
+      { item: "Platform & design system", cost: 2000 },
+      { item: "Auth + Stripe subscriptions", cost: 1600 },
+      { item: "Dynamic content engine (ranked feed)", cost: 2000 },
+      { item: "Pricing / Stories / onboarding", cost: 900 },
     ],
   },
 ];
