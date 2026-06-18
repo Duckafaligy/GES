@@ -401,27 +401,63 @@ export default function BookCall({ inline = false }: { inline?: boolean }) {
   // ── Inline section (near the footer) ──
   if (inline) {
     return (
-      <section id="book" className="sec-dark py-24 border-t-2 border-[var(--line)]">
-        <div className="max-w-6xl mx-auto px-5">
-          <div className="flex items-center gap-4 mb-10 border-b-2 border-[var(--line)] pb-4">
+      <section id="book" className="sec-dark relative overflow-hidden py-28 md:py-36 border-t-2 border-[var(--line)]">
+        {/* ambient acid glow so the section reads as the page's main CTA */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 right-[-10%] w-[42rem] h-[42rem] rounded-full bg-[rgba(204,255,0,0.10)] blur-[120px]" />
+          <div className="absolute bottom-[-30%] left-[-10%] w-[38rem] h-[38rem] rounded-full bg-[rgba(224,161,30,0.10)] blur-[120px]" />
+        </div>
+
+        <div className="relative max-w-6xl mx-auto px-5">
+          <div className="flex items-center gap-4 mb-12 border-b-2 border-[var(--line)] pb-4">
             <span className="eyebrow">08 / Book</span>
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
             <span className="eyebrow text-[var(--amber)]">Free · 30 min</span>
           </div>
-          <div className="grid lg:grid-cols-[1fr_1.4fr] gap-10 items-start">
+
+          <div className="grid lg:grid-cols-[1fr_1.25fr] gap-12 lg:gap-16 items-center">
             <div>
-              <h2 className="glow-acid display text-[clamp(2.2rem,5.5vw,4.2rem)] mb-5">
+              <span className="inline-flex items-center gap-2 mono text-[11px] font-bold uppercase tracking-[0.18em] bg-[var(--acid)] text-[#0a0a0a] px-3 py-1.5 mb-6">
+                <CalendarDays size={13} /> Book a discovery call
+              </span>
+              <h2 className="glow-acid display text-[clamp(2.8rem,7vw,5.5rem)] leading-[0.95] mb-6">
                 Grab A{" "}
                 <span className="inline-block bg-[var(--acid)] text-[#0a0a0a] px-2">Time</span>
               </h2>
-              <p className="text-[var(--muted)] text-base md:text-lg leading-relaxed">
+              <p className="text-[var(--muted)] text-lg md:text-xl leading-relaxed mb-8 max-w-md">
                 Verify your email, pick a slot, and we&apos;ll meet for a free 30-minute
-                discovery call — we learn your business, then build you a tailored
-                preview. No obligation until you approve the design.
+                discovery call — then we build you a tailored preview. No obligation
+                until you approve the design.
               </p>
+              <ul className="space-y-3.5 mb-9">
+                {[
+                  "Free 30-minute discovery call",
+                  "We learn your business & goals",
+                  "You get a tailored live preview",
+                  "Zero obligation until you approve",
+                ].map((t) => (
+                  <li key={t} className="flex items-center gap-3 text-[var(--fg)] text-base md:text-lg">
+                    <span className="w-6 h-6 grid place-items-center bg-[var(--acid)] text-[#0a0a0a] border-2 border-[var(--line)] flex-shrink-0">
+                      <Check size={14} strokeWidth={3} />
+                    </span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+                <span className="flex items-center gap-1.5"><Clock size={13} className="text-[var(--acid)]" /> 30 minutes</span>
+                <span className="flex items-center gap-1.5"><ShieldCheck size={13} className="text-[var(--acid)]" /> Email-verified</span>
+                <span className="flex items-center gap-1.5"><Check size={13} className="text-[var(--acid)]" /> No spam, ever</span>
+              </div>
             </div>
-            <div className="bg-[#0a0a0a] text-white border-2 border-white shadow-[10px_10px_0_0_var(--acid)] overflow-hidden">
-              {panel}
+
+            <div className="relative">
+              <span className="absolute -top-3 -right-3 z-20 mono text-[11px] font-black uppercase tracking-[0.12em] bg-[var(--acid)] text-[#0a0a0a] px-3 py-1.5 border-2 border-white rotate-3 shadow-[3px_3px_0_0_#000]">
+                Free
+              </span>
+              <div className="bg-[#0a0a0a] text-white border-2 border-white shadow-[14px_14px_0_0_var(--acid)] overflow-hidden">
+                {panel}
+              </div>
             </div>
           </div>
         </div>
