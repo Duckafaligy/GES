@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Cpu, Film, Workflow, type LucideIcon } from "lucide-react";
+import { Cpu, Workflow, type LucideIcon } from "lucide-react";
 import ProductViewer from "./ProductViewer";
 
 type Tab = {
@@ -34,22 +34,6 @@ const tabs: Tab[] = [
     ],
     features: ["Hyper-realistic materials", "Lifelike lighting", "360° swipe rotation", "Feels physically real"],
     video: "/media/premium-360.mp4",
-  },
-  {
-    id: "frames",
-    icon: Film,
-    label: "Landing Scroll Animation",
-    tier: "Signature Build",
-    tagline: "Scroll-Driven • Cinematic • Immersive",
-    description:
-      "A 360° product animation wired to your scroll position. We extract high-quality frames and tie them to the scroll, so the product rotates and explodes to reveal every part as visitors move down the page.",
-    tools: [
-      { name: "Frame Splitting", role: "High-quality frame extraction" },
-      { name: "Scroll Scrub", role: "Frame tied to scroll position" },
-      { name: "Canvas Render", role: "Buttery-smooth playback" },
-      { name: "Part Callouts", role: "Labels reveal as it explodes" },
-    ],
-    features: ["Scroll-controlled rotation", "Up to 190+ frames", "Silky smooth interpolation", "Mobile swipe support"],
   },
   {
     id: "automation",
@@ -97,7 +81,7 @@ export default function ThreeDFeatures() {
             <span className="inline-block bg-[var(--acid)] text-[#0a0a0a] px-2">Real Online</span>
           </h2>
           <p className="text-[var(--muted)] text-base md:text-lg leading-relaxed">
-            From hyper-realistic 360° models to cinematic scroll animations —
+            From hyper-realistic 360° product models you can spin and inspect —
             plus the AI agents and automated workflows that run the business
             behind the storefront.
           </p>
