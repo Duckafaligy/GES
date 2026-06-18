@@ -54,6 +54,24 @@ const PROJECTS: Project[] = [
       { item: "Custom onboarding & flows", cost: 200 },
     ],
   },
+  {
+    name: "LaunchVault",
+    short: "LaunchVault",
+    tag: "SaaS / AI",
+    status: "Live · real org",
+    live: true,
+    url: "https://launchvault.ca",
+    img: "/portfolio/launchvault.png",
+    blurb:
+      "A live AI-learning SaaS — “Your AI Mastery Engine.” Turns the firehose of AI into a ranked daily feed of prompts, agents and courses across 50 domains, with accounts and Stripe subscriptions.",
+    price: 4800,
+    breakdown: [
+      { item: "Platform & design system", cost: 1500 },
+      { item: "Auth + Stripe subscriptions", cost: 1200 },
+      { item: "Dynamic content engine (ranked feed)", cost: 1400 },
+      { item: "Pricing / Stories / onboarding", cost: 700 },
+    ],
+  },
 ];
 
 const money = (n: number) => `$${n.toLocaleString()}`;
@@ -82,14 +100,14 @@ export default function Work() {
             <span className="inline-block bg-[var(--acid)] text-[#0a0a0a] px-2">Real Range</span>
           </h2>
           <p className="text-[var(--muted)] text-base md:text-lg leading-relaxed">
-            A live platform powering a real Ontario organization, and a full e-commerce
-            concept that shows the bar we build to — premium UI, lifelike product feel,
-            conversion-first throughout.
+            Live platforms powering real organizations — an AI-learning SaaS with
+            subscriptions and a community study program — plus a full e-commerce concept
+            that shows the bar we build to. Premium UI, conversion-first throughout.
           </p>
         </motion.div>
 
         {/* Project cards */}
-        <div className="grid md:grid-cols-2 gap-7">
+        <div className="grid md:grid-cols-3 gap-7">
           {PROJECTS.map((p, i) => (
             <ProjectCard key={p.name} p={p} i={i} />
           ))}
@@ -102,7 +120,7 @@ export default function Work() {
             <span className="flex-1 h-[2px] bg-[var(--line)] opacity-25" />
             <span className="eyebrow text-[var(--muted)]">Indicative</span>
           </div>
-          <div className="grid md:grid-cols-2 gap-7">
+          <div className="grid md:grid-cols-3 gap-7">
             {PROJECTS.map((p, i) => (
               <motion.div
                 key={p.name}
