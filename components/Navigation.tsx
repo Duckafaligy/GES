@@ -13,6 +13,7 @@ const navLinks = [
   { label: "Process", href: "#process" },
   { label: "Work", href: "#work" },
   { label: "Contact", href: "#contact" },
+  { label: "Book", href: "#book" },
 ];
 
 const tickerItems = [
