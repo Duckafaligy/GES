@@ -27,6 +27,10 @@
     /* Offset in-page anchor jumps (#services, #contact…) so section headers
        land BELOW the ~92px fixed nav + ticker instead of hiding under it. */
     scroll-padding-top: 6.5rem;
+    /* Firefox scrollbar (WebKit styled separately below) — keep it on-brand
+       across browsers instead of falling back to the chunky OS default. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--ash) var(--ink);
   }
 
   body {
