@@ -104,6 +104,34 @@ patterns:
 - **Section dividers, textures, depth** (soft shadows, gradient meshes) for a
   crafted, expensive feel. Consistent spacing scale and rhythm.
 
+### E. Polish & motion craft — NON-NEGOTIABLE (it's a first impression)
+The preview *is* the sales pitch. Every surface must look intentional and feel
+alive. Hold this bar on every build:
+
+- **Editorial section headers.** Each header = a small kicker rule/eyebrow (e.g.
+  a fine accent line before an uppercase label) + a large, tight display
+  heading + a one-line supporting "kicker" sentence. Consistent across sections.
+- **Refined navbar.** Sticky and **condenses on scroll** (less padding + a
+  hairline/shadow appear). Links get an **animated underline** (sweeps in on
+  hover); a clear primary CTA; a real mobile menu. Optional thin scroll-progress
+  bar at the very top.
+- **Cards with life.** Generous padding, soft radius, a **hover lift** plus a
+  signature touch (e.g. a gradient accent line that draws across the top, image
+  zoom, or border glow). Never flat, static boxes.
+- **Choreographed motion.** Sections **reveal on scroll** with a gentle rise;
+  **stagger** grouped items (cards/list) by ~60–90ms so they cascade, not pop in
+  together. **Count-up** any stats. Buttons/links have smooth transitions. One
+  signature interaction (lightbox / tabs / before-after / scroll moment).
+- **Hero is a moment.** Layered gradient/grain or CSS/SVG art, big confident
+  type, a clear CTA, a small credential/stat row — it has to land in 2 seconds.
+- **Spacing & rhythm.** A consistent spacing scale and generous section padding
+  (premium breathing room). Align everything to a grid; no cramped or random gaps.
+- **Smooth, never janky.** 60fps; animate only transform/opacity; no layout
+  shift; everything neutralizes cleanly under `prefers-reduced-motion`.
+
+Treat anything flat, abrupt, or "default-looking" as a bug. If a section
+wouldn't look at home on an award-gallery site, refine it before shipping.
+
 ### Imagery (don't break, don't look AI)
 Prefer **self-contained, intentional visuals** — inline SVG illustrations, CSS
 gradients/patterns, bold type, product/gallery cards with brand-tone gradients.
