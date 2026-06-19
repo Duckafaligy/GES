@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!client) {
       const after = await registerFailure("verify-code", ip);
       return NextResponse.json(
-        { error: after.locked ? after.message : "Invalid access code. Please check and try again." },
+        { error: after.locked ? after.message : "Sorry — this code is invalid, inactive, or has expired. Please double-check it, or contact us for a fresh link." },
         { status: after.locked ? 429 : 401,
           ...(after.locked ? { headers: { "Retry-After": String(Math.ceil(after.retryAfterMs / 1000)) } } : {}) }
       );
