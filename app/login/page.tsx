@@ -36,6 +36,13 @@ export default function LoginPage() {
         return;
       }
 
+      // Valid code, but the preview hasn't been published yet.
+      if (data.pending) {
+        setSuccess(`Your code works — but ${data.name}'s preview isn't quite ready yet. Please check back in a day or so.`);
+        setLoading(false);
+        return;
+      }
+
       setSuccess(`Welcome, ${data.name}! Loading your preview...`);
       // No cookie: keep the token in sessionStorage for this session only.
       try { sessionStorage.setItem(`ges_pt_${data.slug}`, data.token); } catch {}

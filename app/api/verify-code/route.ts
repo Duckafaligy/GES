@@ -47,6 +47,12 @@ export async function POST(req: NextRequest) {
     // Sales signal: the prospect actually opened their preview. Best-effort.
     await recordPreviewView(client);
 
+    // Valid code, but the build hasn't been published yet — tell them it's
+    // coming instead of handing back a token to an empty preview.
+    if (!client.preview_ready) {
+      return NextResponse.json({ pending: true, name: client.name, slug: client.slug });
+    }
+
     // No cookie — a short-lived token is held in sessionStorage by the page.
     const token = signToken("preview", client.slug, PREVIEW_TTL_MS);
     return NextResponse.json({ token, name: client.name, slug: client.slug });

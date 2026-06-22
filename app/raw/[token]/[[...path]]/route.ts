@@ -94,12 +94,12 @@ function shell(title: string, inner: string, status = 200): NextResponse {
   });
 }
 
-const notFinishedPage = () =>
+const notFinishedPage = (name?: string) =>
   shell(
     "Preview in progress — GES",
     `<span class="tag">GES Client Preview</span>
-     <h1>Preview is not finished —<br/>check back in a day.</h1>
-     <p>We're still building your site. You'll be able to view it right here with the same code shortly.<br/><br/>Questions? <a href="/#contact">Contact us</a>.</p>`
+     <h1>Your code works${name ? ` — ${name}'s` : "'s"}<br/>preview isn't ready just yet.</h1>
+     <p>We're putting the finishing touches on your site. Check back in a day or so and it'll appear right here with the same code.<br/><br/>Questions? <a href="/#contact">Contact us</a>.</p>`
   );
 
 const expiredPage = () =>
@@ -131,7 +131,7 @@ export async function GET(
   const slug = payload.sub;
   const client = await findClientBySlug(slug);
   if (!client || client.status !== "active") return expiredPage();
-  if (!client.preview_ready) return notFinishedPage();
+  if (!client.preview_ready) return notFinishedPage(client.name);
 
   const rel = (path && path.length ? path.join("/") : "index.html").replace(/^\/+/, "");
   if (rel.includes("..")) return new NextResponse("Not found", { status: 404 });
@@ -147,7 +147,7 @@ export async function GET(
   }
 
   if (dl.error || !dl.data) {
-    if (rel === "index.html") return notFinishedPage();
+    if (rel === "index.html") return notFinishedPage(client.name);
     return new NextResponse("Not found", { status: 404 });
   }
 

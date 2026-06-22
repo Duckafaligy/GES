@@ -73,6 +73,11 @@ export default function BusinessPreview() {
         setLoading(false);
         return;
       }
+      if (data.pending) {
+        setError(`Your code works — but ${data.name ?? "this"} preview isn't quite ready yet. Please check back in a day or so.`);
+        setLoading(false);
+        return;
+      }
       sessionStorage.setItem(`ges_pt_${business}`, data.token);
       setToken(data.token);
     } catch {
