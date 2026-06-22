@@ -60,6 +60,17 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+      <head>
+        {/* Always open at the top on a fresh load/reload (all devices) — but
+            still honor #anchor deep-links. Set before paint to avoid a jump. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{history.scrollRestoration='manual'}catch(e){}" +
+              "addEventListener('pageshow',function(){if(!location.hash)scrollTo(0,0)});",
+          }}
+        />
+      </head>
       <body className="antialiased overflow-x-hidden">{children}</body>
     </html>
   );

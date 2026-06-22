@@ -275,7 +275,7 @@ export default function BikeShowcase() {
           style={{ opacity: 1 }}
           className="absolute top-0 left-0 right-0 z-20 pt-20 sm:pt-28 px-6 text-center pointer-events-none"
         >
-          <h2 className="display text-[clamp(1.4rem,5.5vw,4.5rem)] text-white">
+          <h2 className="display text-[1.1rem] sm:text-[clamp(2rem,6vw,4.5rem)] text-white">
             Products Your Customers{" "}
             <span className="inline-block bg-[#ccff00] text-[#0a0a0a] px-2">
               Take Apart
