@@ -88,6 +88,11 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-5 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="mono text-xs text-[var(--muted)]">
             © {new Date().getFullYear()} GES — Global E-Commerce Saviours. All rights reserved.
+            <span className="hidden sm:inline"> · </span>
+            <br className="sm:hidden" />
+            <span className="text-[var(--muted)]">We use privacy-respecting cookies — see our{" "}
+              <Link href="/privacy-policy" className="ul-link text-[var(--fg)]">Privacy Policy</Link>.
+            </span>
           </p>
           <Link href="/login">
             <span className="eyebrow ul-link flex items-center gap-1.5">
