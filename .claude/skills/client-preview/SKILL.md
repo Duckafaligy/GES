@@ -24,10 +24,12 @@ it should clearly out-class whatever the prospect has now.
 
 1. **ONE page only.** A landing page. No second page, no router, no `/about`.
    Use in-page anchor sections (`#work`, `#contact`) — never separate documents.
-2. **Self-contained `index.html`.** Inline the CSS in `<style>` and JS in
-   `<script>`; embed the logo/icons/art as inline `<svg>` or `data:` URIs. The
-   only acceptable external request is a Google Fonts `<link>` — and it must
-   degrade to a system font stack if offline. No frameworks, no CDNs, no build.
+2. **Self-contained.** Inline the CSS in `<style>` and JS in `<script>`. Prefer
+   a single `index.html`; a small **`assets/` folder of the client's own
+   downloaded images** is allowed (and encouraged — see Imagery). Reference them
+   with **relative paths** (`assets/logo.png`). Embed icons/decorative art as
+   inline `<svg>`/`data:` URIs. The only acceptable network request is a Google
+   Fonts `<link>` (with a system fallback). No frameworks, no CDNs, no build.
 3. **Relative paths only** if you ever split files — never root-absolute
    (`/styles.css`). A single inlined `index.html` is strongly preferred.
 4. **Real, business-specific everything.** No lorem ipsum, no fabricated phone
@@ -71,7 +73,10 @@ Pull from, and tailor to the business:
 - **Pricing / packages** — indicative tiers when it fits the business (clearly
   framed as starting points), or an "enquire" block if pricing is bespoke.
 - **FAQ** — an accordion answering the real objections for that trade.
-- **Prominent booking/contact CTA** + footer with hours/location if known.
+- **Prominent booking/contact CTA**.
+- **Extended footer** (never a one-liner): a multi-column footer with the
+  brand/real logo + a short about line, quick links, shop/services, and a
+  contact column (address, phone, hours) — plus a bottom bar with copyright.
 
 ### B. Interactivity & motion (several, tasteful, all reduced-motion-aware)
 Ship a mix — see `reference/interactions.html` for copy-ready, self-contained
@@ -111,10 +116,11 @@ alive. Hold this bar on every build:
 - **Editorial section headers.** Each header = a small kicker rule/eyebrow (e.g.
   a fine accent line before an uppercase label) + a large, tight display
   heading + a one-line supporting "kicker" sentence. Consistent across sections.
-- **Refined navbar.** Sticky and **condenses on scroll** (less padding + a
-  hairline/shadow appear). Links get an **animated underline** (sweeps in on
-  hover); a clear primary CTA; a real mobile menu. Optional thin scroll-progress
-  bar at the very top.
+- **Refined navbar — fixed.** Use `position: fixed` so it stays visible the
+  whole scroll (give the hero enough top padding to clear it). It **condenses on
+  scroll** (less padding + a hairline/shadow appear), links get an **animated
+  underline**, a clear primary CTA, and a real mobile menu. Optional thin
+  scroll-progress bar at the very top.
 - **Cards with life.** Generous padding, soft radius, a **hover lift** plus a
   signature touch (e.g. a gradient accent line that draws across the top, image
   zoom, or border glow). Never flat, static boxes.
@@ -132,11 +138,28 @@ alive. Hold this bar on every build:
 Treat anything flat, abrupt, or "default-looking" as a bug. If a section
 wouldn't look at home on an award-gallery site, refine it before shipping.
 
-### Imagery (don't break, don't look AI)
-Prefer **self-contained, intentional visuals** — inline SVG illustrations, CSS
-gradients/patterns, bold type, product/gallery cards with brand-tone gradients.
-These always render and look designed. Only use photos from a source the client
-controls; otherwise design around their absence as premium minimalism.
+### Imagery — use the client's REAL images (makes it personal)
+First, try to use the business's **own** images so the preview feels like *them*:
+- **Always grab their real logo / wordmark** if you can reach it, and feature it
+  (nav and/or footer). It's the single biggest "this is really us" signal.
+- Pull a few of their real photos (hero, gallery) when reachable. **Download
+  them into the build's `assets/` folder and reference relatively** — never
+  hotlink a remote URL (it can 404, get blocked, or change). Downloading keeps
+  the preview self-contained and unbreakable.
+- Many small-business sites are bot-protected or JS-rendered (403s, no images in
+  raw HTML). Try a reader proxy / their CDN; if their photography genuinely
+  can't be extracted, **don't fabricate or hotlink guessed URLs** — fall back to
+  self-contained, intentional visuals (inline SVG, CSS gradients/patterns,
+  brand-tone gallery tiles) that read as premium minimalism, and say so in the
+  handoff. Real logo + tasteful CSS art beats broken/random stock every time.
+
+### Typography — avoid the "AI default" look
+Pick a **characterful, on-brand** pairing. **Avoid the over-defaulted fonts that
+read as AI/template** — Inter, Roboto, Open Sans, Arial, Helvetica, or
+system-font-only. Reach instead for type with personality (e.g. Fraunces,
+Cormorant, Playfair, Marcellus for display; Hanken Grotesk, Mulish, Schibsted
+Grotesk, Bricolage for body) chosen to fit the brand. Always include a system
+fallback in the stack.
 
 ## 3 · Build
 
