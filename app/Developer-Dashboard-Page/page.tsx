@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import TemplatesPanel from "./TemplatesPanel";
 
 interface DevClient {
   id: string;
@@ -9,6 +10,8 @@ interface DevClient {
   industry: string | null;
   status: "active" | "disabled";
   preview_ready: boolean;
+  deploy_url: string | null;
+  dob: string | null;
   expires_at: string | null;
   created_at: string;
 }
@@ -25,8 +28,16 @@ function stripRoot(p: string): string {
   const i = p.indexOf("/");
   return i >= 0 ? p.slice(i + 1) : p;
 }
-function isJunk(rel: string): boolean {
+function isUploadJunk(rel: string): boolean {
   const bad = new Set(["node_modules", ".git", ".next", ".cache", ".vercel", "__MACOSX", "dist-ssr"]);
+  const segs = rel.split("/");
+  if (segs.some((s) => bad.has(s))) return true;
+  const file = segs[segs.length - 1];
+  if (!file || file === ".DS_Store" || file === "Thumbs.db" || file === ".env" || file.startsWith(".env.")) return true;
+  return false;
+}
+function isDeployJunk(rel: string): boolean {
+  const bad = new Set(["node_modules", ".git", ".next", ".vercel", ".cache", "dist", "build", "out", "coverage", ".turbo", ".svelte-kit", "__MACOSX"]);
   const segs = rel.split("/");
   if (segs.some((s) => bad.has(s))) return true;
   const file = segs[segs.length - 1];
@@ -149,6 +160,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [reveal, setReveal] = useState<{ label: string; code: string } | null>(null);
+  const [tab, setTab] = useState<"templates" | "clients">("templates");
 
   const api = useCallback(
     async (path: string, opts: RequestInit = {}) => {
@@ -180,7 +192,7 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
   return (
     <div>
       {reveal && <CodeReveal label={reveal.label} code={reveal.code} onClose={() => setReveal(null)} />}
-      {/* top bar */}
+
       <div className="sticky top-0 z-20 bg-[#0a0a0a] border-b-2 border-[var(--line)]">
         <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -202,7 +214,14 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
           </div>
         )}
 
-        {/* stat strip */}
+        <div className="flex gap-2 mb-8">
+          <button onClick={() => setTab("templates")} className={`mono text-xs uppercase tracking-[0.14em] px-4 py-2 border-2 border-[var(--line)] ${tab === "templates" ? "bg-[var(--acid)] text-[#0a0a0a]" : "hover:bg-white/10"}`}>Templates</button>
+          <button onClick={() => setTab("clients")} className={`mono text-xs uppercase tracking-[0.14em] px-4 py-2 border-2 border-[var(--line)] ${tab === "clients" ? "bg-[var(--acid)] text-[#0a0a0a]" : "hover:bg-white/10"}`}>Clients (legacy)</button>
+        </div>
+
+        {tab === "templates" && <TemplatesPanel api={api} onOk={ok} onErr={err} />}
+
+        {tab === "clients" && (<>
         <div className="grid grid-cols-2 sm:grid-cols-3 border-t-2 border-l-2 border-[var(--line)] mb-9">
           <Stat n={clients.length} label="Clients" />
           <Stat n={live} label="Live previews" />
@@ -210,7 +229,6 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
         </div>
 
         <AddClient api={api} onDone={ok} onErr={err} onReveal={showCode} />
-        <UploadPreview clients={clients} api={api} onDone={ok} onErr={err} />
 
         <section className="mt-10">
           <div className="flex items-center gap-4 mb-4 border-b-2 border-[var(--line)] pb-3">
@@ -225,11 +243,12 @@ function Dashboard({ token, onUnauth }: { token: string; onUnauth: () => void })
           ) : (
             <div className="space-y-3">
               {clients.map((c) => (
-                <ClientCard key={c.id} c={c} api={api} onChange={refresh} onErr={err} onReveal={showCode} />
+                <ClientCard key={c.id} c={c} api={api} refresh={refresh} onOk={ok} onErr={err} onReveal={showCode} />
               ))}
             </div>
           )}
         </section>
+        </>)}
       </div>
     </div>
   );
@@ -244,7 +263,7 @@ function Stat({ n, label }: { n: number; label: string }) {
   );
 }
 
-/* ── add client ── */
+/* ── add client (auto-code + DOB) ── */
 function AddClient({
   api, onDone, onErr, onReveal,
 }: {
@@ -255,6 +274,7 @@ function AddClient({
 }) {
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
+  const [dob, setDob] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -264,13 +284,13 @@ function AddClient({
       const res = await api("/api/dev/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, industry }),
+        body: JSON.stringify({ name, industry, dob }),
       });
       const data = await res.json();
       if (!res.ok) { onErr(data.error ?? "Failed to add client."); return; }
-      setName(""); setIndustry("");
+      setName(""); setIndustry(""); setDob("");
       if (data.code) onReveal(data.client.name, data.code);
-      onDone(`Added "${data.client.name}" → preview URL /preview/${data.client.slug}.`);
+      onDone(`Added "${data.client.name}" → /preview/${data.client.slug}.`);
     } catch (e) { onErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -278,177 +298,87 @@ function AddClient({
   return (
     <section className="hard bg-[#0a0a0a] p-6 mb-6">
       <div className="eyebrow text-[var(--muted)] mb-4">Add Client</div>
-      <form onSubmit={submit} className="grid sm:grid-cols-2 gap-3">
+      <form onSubmit={submit} className="grid sm:grid-cols-3 gap-3">
         <Field label="Business name *" value={name} onChange={setName} placeholder="Blooms & Co." />
         <Field label="Industry" value={industry} onChange={setIndustry} placeholder="Florist" />
-        <div className="sm:col-span-2 flex items-center gap-4 flex-wrap">
-          <button type="submit" disabled={busy || !name} className="btn-brut disabled:opacity-50">
+        <label className="block">
+          <span className="eyebrow text-[var(--muted)] mb-2 block">Date of birth *</span>
+          <input
+            type="date"
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+            className="w-full bg-transparent border-2 border-[var(--line)] px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--acid)] mono [color-scheme:dark]"
+          />
+        </label>
+        <div className="sm:col-span-3 flex items-center gap-4 flex-wrap">
+          <button type="submit" disabled={busy || !name || !dob} className="btn-brut disabled:opacity-50">
             {busy ? "Adding…" : "Add Client"}
           </button>
-          <span className="mono text-[11px] text-[var(--muted)]">A 64-char access code is generated automatically and shown once.</span>
+          <span className="mono text-[11px] text-[var(--muted)]">A 64-char access code is generated + shown once. The client signs in with their DOB + that code.</span>
         </div>
       </form>
     </section>
   );
 }
 
-/* ── upload preview ── */
-function UploadPreview({
-  clients, api, onDone, onErr,
-}: {
-  clients: DevClient[];
-  api: (p: string, o?: RequestInit) => Promise<Response>;
-  onDone: (m: string) => void;
-  onErr: (m: string) => void;
-}) {
-  const [slug, setSlug] = useState("");
-  const [picked, setPicked] = useState<PickedFile[]>([]);
-  const [skipped, setSkipped] = useState(0);
-  const [oversize, setOversize] = useState<string[]>([]);
-  const [hasIndex, setHasIndex] = useState(false);
-  const [drag, setDrag] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+/* ── live preview thumbnail ── */
+function Thumbnail({ c, api }: { c: DevClient; api: (p: string, o?: RequestInit) => Promise<Response> }) {
+  const [src, setSrc] = useState<string | null>(c.deploy_url ?? null);
+  const [state, setState] = useState<"none" | "loading" | "ready">(c.deploy_url ? "ready" : "loading");
 
-  const folderInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    const el = folderInput.current;
-    if (el) { el.setAttribute("webkitdirectory", ""); el.setAttribute("directory", ""); }
-  }, []);
-
-  function applyPicked(list: PickedFile[]) {
-    const kept: PickedFile[] = [];
-    let skip = 0;
-    for (const p of list) {
-      if (!p.rel || isJunk(p.rel)) { skip++; continue; }
-      kept.push(p);
-    }
-    setPicked(kept);
-    setSkipped(skip);
-    setOversize(kept.filter((k) => k.file.size > 4 * 1024 * 1024).map((k) => k.rel));
-    setHasIndex(kept.some((k) => k.rel === "index.html"));
-  }
-
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    applyPicked(files.map((f) => ({ file: f, rel: stripRoot((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name) })));
-  }
-
-  async function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDrag(false);
-    try {
-      applyPicked(await filesFromDrop(e.dataTransfer.items));
-    } catch { onErr("Could not read that drop — try the Choose folder button."); }
-  }
-
-  async function upload() {
-    if (!slug) { onErr("Pick a client to upload to."); return; }
-    if (!hasIndex) { onErr("No index.html at the build root — select the built output folder (dist/ or out/)."); return; }
-    setProgress({ done: 0, total: picked.length });
-    try {
-      for (let i = 0; i < picked.length; i++) {
-        const { file, rel } = picked[i];
-        const fd = new FormData();
-        fd.append("slug", slug);
-        fd.append("path", rel);
-        fd.append("file", file);
-        const res = await api("/api/dev/upload", { method: "POST", body: fd });
-        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(`Failed on ${rel}: ${d.error ?? res.status}`); }
-        setProgress({ done: i + 1, total: picked.length });
-      }
-      await api("/api/dev/clients", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, preview_ready: true }),
-      });
-      onDone(`Uploaded ${picked.length} files to "${slug}" — preview is now live.`);
-      setPicked([]); setSkipped(0); setOversize([]); setHasIndex(false);
-    } catch (e) { onErr((e as Error).message); }
-    finally { setProgress(null); }
-  }
-
-  const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+    let cancelled = false;
+    if (c.deploy_url) { setSrc(c.deploy_url); setState("ready"); return; }
+    if (!c.preview_ready) { setState("none"); return; }
+    setState("loading");
+    (async () => {
+      try {
+        const res = await api(`/api/dev/preview-token?slug=${encodeURIComponent(c.slug)}`);
+        const d = await res.json();
+        if (cancelled) return;
+        if (res.ok && d.url) { setSrc(d.url); setState("ready"); } else setState("none");
+      } catch { if (!cancelled) setState("none"); }
+    })();
+    return () => { cancelled = true; };
+  }, [c.slug, c.deploy_url, c.preview_ready, api]);
 
   return (
-    <section className="hard bg-[#0a0a0a] p-6 mb-6">
-      <div className="eyebrow text-[var(--muted)] mb-2">Upload Preview Build</div>
-      <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
-        Drop the <strong className="text-white">built output</strong> folder (plain HTML, or
-        <span className="text-[var(--acid)]"> dist/</span> /<span className="text-[var(--acid)]"> out/</span>) — not the source project.
-        <span className="text-white"> node_modules</span> / .git / .next are skipped automatically. Must contain an index.html.
-      </p>
-
-      <label className="block mb-3">
-        <span className="eyebrow text-[var(--muted)] mb-2 block">Target client</span>
-        <select
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          className="w-full bg-[#0a0a0a] border-2 border-[var(--line)] px-3 py-3 mono text-sm focus:outline-none focus:border-[var(--acid)]"
-        >
-          <option value="">— choose —</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.slug}>{c.name} ({c.slug})</option>
-          ))}
-        </select>
-      </label>
-
-      <input ref={folderInput} type="file" multiple onChange={onPick} className="hidden" />
-      <div
-        onClick={() => folderInput.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={onDrop}
-        className={`border-2 border-dashed cursor-pointer grid place-items-center text-center py-10 px-4 transition-colors ${drag ? "border-[var(--acid)] bg-[var(--acid)]/10" : "border-[var(--line)]/50 hover:border-[var(--line)]"}`}
-      >
-        <div>
-          <div className="mono text-sm font-bold">{drag ? "Drop the folder…" : "Drop build folder here"}</div>
-          <div className="eyebrow text-[var(--muted)] mt-2">or click to choose</div>
-        </div>
+    <div className="w-56 flex-shrink-0">
+      <div className="border-2 border-[var(--line)] bg-black overflow-hidden relative" style={{ width: 224, height: 140 }}>
+        {state === "ready" && src ? (
+          <iframe
+            src={src}
+            title={c.name}
+            loading="lazy"
+            tabIndex={-1}
+            scrolling="no"
+            className="absolute top-0 left-0 border-0 pointer-events-none"
+            style={{ width: 1000, height: 625, transform: "scale(0.224)", transformOrigin: "top left" }}
+          />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center mono text-[10px] text-[var(--muted)] uppercase tracking-[0.14em]">
+            {state === "loading" ? "Loading…" : "No preview yet"}
+          </div>
+        )}
       </div>
-
-      {picked.length > 0 && (
-        <div className="mt-4 mono text-[11px]">
-          <div className="text-white">
-            {picked.length} files ready{skipped > 0 && <span className="text-[var(--muted)]"> · {skipped} junk skipped</span>}{" "}
-            {hasIndex ? <span className="text-[var(--acid)]">· index.html ✓</span> : <span className="text-red-400">· no index.html ✗</span>}
-          </div>
-          {oversize.length > 0 && (
-            <div className="text-amber-400 mt-1">
-              ⚠ {oversize.length} file(s) over 4MB may fail on Vercel (per-file upload limit): {oversize.slice(0, 3).join(", ")}{oversize.length > 3 ? "…" : ""}. Compress large media or host it elsewhere.
-            </div>
-          )}
-          <div className="text-[var(--muted)] mt-1 max-h-24 overflow-y-auto border-2 border-[var(--line)]/40 p-2">
-            {picked.slice(0, 50).map((p) => <div key={p.rel}>{p.rel}</div>)}
-            {picked.length > 50 && <div>…and {picked.length - 50} more</div>}
-          </div>
-
-          {progress && (
-            <div className="h-3 border-2 border-[var(--line)] mt-3">
-              <div className="h-full bg-[var(--acid)] transition-all" style={{ width: `${pct}%` }} />
-            </div>
-          )}
-
-          <button onClick={upload} disabled={!!progress || !slug || !hasIndex} className="btn-brut mt-4 disabled:opacity-50">
-            {progress ? `Uploading ${progress.done}/${progress.total}…` : `Upload to ${slug || "…"}`}
-          </button>
-        </div>
-      )}
-    </section>
+    </div>
   );
 }
 
 /* ── client card ── */
 function ClientCard({
-  c, api, onChange, onErr, onReveal,
+  c, api, refresh, onOk, onErr, onReveal,
 }: {
   c: DevClient;
   api: (p: string, o?: RequestInit) => Promise<Response>;
-  onChange: () => void;
+  refresh: () => void;
+  onOk: (m: string) => void;
   onErr: (m: string) => void;
   onReveal: (label: string, code: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [modal, setModal] = useState<null | "upload" | "deploy">(null);
   const url = `/preview/${c.slug}`;
 
   async function regen() {
@@ -463,7 +393,7 @@ function ClientCard({
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { onErr(d.error ?? "Could not regenerate code."); return; }
       if (d.code) onReveal(c.name, d.code);
-      onChange();
+      refresh();
     } catch (e) { onErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -477,7 +407,7 @@ function ClientCard({
         body: JSON.stringify({ slug: c.slug, ...payload }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); onErr(d.error ?? "Update failed."); return; }
-      onChange();
+      refresh();
     } catch (e) { onErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -492,7 +422,7 @@ function ClientCard({
         body: JSON.stringify({ slug: c.slug }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); onErr(d.error ?? "Delete failed."); return; }
-      onChange();
+      refresh();
     } catch (e) { onErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -504,37 +434,236 @@ function ClientCard({
     });
   }
 
+  const btn = "border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10";
+
   return (
-    <div className={`hard bg-[#0a0a0a] p-5 flex flex-col md:flex-row md:items-center gap-4 ${busy ? "opacity-50" : ""}`}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="font-extrabold uppercase tracking-tight">{c.name}</span>
-          <Pill on={c.preview_ready} onText="Live" offText="Not finished" />
-          {c.status === "disabled" && <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-red-500/60 text-red-400 px-2 py-0.5">Disabled</span>}
-        </div>
-        <div className="mono text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-2 flex-wrap">
-          <span>{c.industry || "—"}</span>
-          <span className="opacity-40">·</span>
-          <button onClick={copy} className="ul-link text-[var(--acid)]">{url}</button>
-          {copied && <span className="text-[var(--acid)]">copied ✓</span>}
+    <div className={`hard bg-[#0a0a0a] p-5 ${busy ? "opacity-50" : ""}`}>
+      <div className="flex flex-col md:flex-row gap-5">
+        <Thumbnail c={c} api={api} />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="font-extrabold uppercase tracking-tight">{c.name}</span>
+            <Pill on={c.preview_ready} onText="Live" offText="Not finished" />
+            {c.deploy_url && <span className="mono text-[9px] uppercase tracking-[0.14em] border border-[var(--line)]/50 text-[var(--muted)] px-1.5 py-0.5">Vercel</span>}
+            {c.status === "disabled" && <span className="mono text-[10px] uppercase tracking-[0.14em] border-2 border-red-500/60 text-red-400 px-2 py-0.5">Disabled</span>}
+          </div>
+
+          <div className="mono text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-2 flex-wrap">
+            <span>{c.industry || "—"}</span>
+            {c.dob && (<><span className="opacity-40">·</span><span>DOB {c.dob}</span></>)}
+            <span className="opacity-40">·</span>
+            <button onClick={copy} className="ul-link text-[var(--acid)]">{url}</button>
+            {copied && <span className="text-[var(--acid)]">copied ✓</span>}
+            {c.deploy_url && (<><span className="opacity-40">·</span><a href={c.deploy_url} target="_blank" rel="noreferrer" className="ul-link text-[var(--acid)]">Vercel ↗</a></>)}
+          </div>
+
+          <div className="flex gap-2 flex-wrap text-[11px] mono mt-3.5">
+            <a href={url} target="_blank" rel="noreferrer" className="border-2 border-[var(--acid)] text-[var(--acid)] px-2.5 py-1.5 hover:bg-[var(--acid)] hover:text-black transition-colors">Open ↗</a>
+            <button onClick={() => setModal("upload")} className={btn}>Upload build</button>
+            <button onClick={() => setModal("deploy")} className={btn}>Deploy project</button>
+            <button onClick={regen} className={btn}>New code</button>
+            <button onClick={() => patch({ preview_ready: !c.preview_ready })} className={btn}>{c.preview_ready ? "Unpublish" : "Publish"}</button>
+            <button onClick={() => patch({ status: c.status === "active" ? "disabled" : "active" })} className={btn}>{c.status === "active" ? "Disable" : "Enable"}</button>
+            {c.deploy_url && <button onClick={() => patch({ deploy_url: null })} className={btn}>Unlink Vercel</button>}
+            <button onClick={remove} className="border-2 border-red-500/50 text-red-400 px-2.5 py-1.5 hover:bg-red-500/10">Delete</button>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap text-[11px] mono">
-        <button onClick={regen} className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10">
-          New code
-        </button>
-        <button onClick={() => patch({ preview_ready: !c.preview_ready })} className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10">
-          {c.preview_ready ? "Unpublish" : "Publish"}
-        </button>
-        <button onClick={() => patch({ status: c.status === "active" ? "disabled" : "active" })} className="border-2 border-[var(--line)] px-2.5 py-1.5 hover:bg-white/10">
-          {c.status === "active" ? "Disable" : "Enable"}
-        </button>
-        <button onClick={remove} className="border-2 border-red-500/50 text-red-400 px-2.5 py-1.5 hover:bg-red-500/10">
-          Delete
-        </button>
+      {modal === "upload" && <UploadModal slug={c.slug} name={c.name} api={api} onClose={() => setModal(null)} onOk={(m) => { setModal(null); onOk(m); }} onErr={onErr} />}
+      {modal === "deploy" && <DeployModal slug={c.slug} name={c.name} api={api} onClose={() => setModal(null)} onOk={(m) => { setModal(null); onOk(m); }} onErr={onErr} />}
+    </div>
+  );
+}
+
+/* ── shared modal + folder picker ── */
+function Modal({ sub, title, onClose, children }: { sub: string; title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 grid place-items-center px-5 py-8 overflow-y-auto" onClick={onClose}>
+      <div className="hard bg-[#0a0a0a] w-full max-w-xl p-7 my-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="eyebrow text-[var(--acid)] mb-1">{sub}</div>
+            <h2 className="display text-2xl">{title}</h2>
+          </div>
+          <button onClick={onClose} className="text-[var(--muted)] hover:text-white text-xl leading-none">✕</button>
+        </div>
+        {children}
       </div>
     </div>
+  );
+}
+
+function FolderPicker({ label, onPicked }: { label: string; onPicked: (files: PickedFile[]) => void }) {
+  const [drag, setDrag] = useState(false);
+  const folderInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = folderInput.current;
+    if (el) { el.setAttribute("webkitdirectory", ""); el.setAttribute("directory", ""); }
+  }, []);
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    onPicked(files.map((f) => ({ file: f, rel: stripRoot((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name) })));
+  }
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDrag(false);
+    try { onPicked(await filesFromDrop(e.dataTransfer.items)); } catch { onPicked([]); }
+  }
+  return (
+    <>
+      <input ref={folderInput} type="file" multiple onChange={onPick} className="hidden" />
+      <div
+        onClick={() => folderInput.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={onDrop}
+        className={`border-2 border-dashed cursor-pointer grid place-items-center text-center py-8 px-4 transition-colors ${drag ? "border-[var(--acid)] bg-[var(--acid)]/10" : "border-[var(--line)]/50 hover:border-[var(--line)]"}`}
+      >
+        <div>
+          <div className="mono text-sm font-bold">{drag ? "Drop it…" : label}</div>
+          <div className="eyebrow text-[var(--muted)] mt-2">or click to choose</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── upload static build (per client) ── */
+function UploadModal({
+  slug, name, api, onClose, onOk, onErr,
+}: {
+  slug: string; name: string;
+  api: (p: string, o?: RequestInit) => Promise<Response>;
+  onClose: () => void; onOk: (m: string) => void; onErr: (m: string) => void;
+}) {
+  const [picked, setPicked] = useState<PickedFile[]>([]);
+  const [skipped, setSkipped] = useState(0);
+  const [hasIndex, setHasIndex] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  function applyPicked(list: PickedFile[]) {
+    const kept: PickedFile[] = [];
+    let skip = 0;
+    for (const p of list) { if (!p.rel || isUploadJunk(p.rel)) { skip++; continue; } kept.push(p); }
+    setPicked(kept); setSkipped(skip); setHasIndex(kept.some((k) => k.rel === "index.html"));
+  }
+
+  async function upload() {
+    if (!hasIndex) { onErr("No index.html at the build root — choose the built output (dist/ or out/)."); return; }
+    setProgress({ done: 0, total: picked.length });
+    try {
+      for (let i = 0; i < picked.length; i++) {
+        const { file, rel } = picked[i];
+        const fd = new FormData();
+        fd.append("slug", slug); fd.append("path", rel); fd.append("file", file);
+        const res = await api("/api/dev/upload", { method: "POST", body: fd });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(`Failed on ${rel}: ${d.error ?? res.status}`); }
+        setProgress({ done: i + 1, total: picked.length });
+      }
+      await api("/api/dev/clients", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, preview_ready: true }) });
+      onOk(`Uploaded ${picked.length} files to "${name}" — preview is live.`);
+    } catch (e) { onErr((e as Error).message); setProgress(null); }
+  }
+
+  const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  return (
+    <Modal sub={`Upload static build · ${name}`} title="Built output" onClose={onClose}>
+      <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
+        Drop the <strong className="text-white">built output</strong> (plain HTML, or <span className="text-[var(--acid)]">dist/</span> / <span className="text-[var(--acid)]">out/</span>). node_modules/.git/.next skipped. Must contain index.html.
+      </p>
+      <FolderPicker label="Drop build folder here" onPicked={applyPicked} />
+      {picked.length > 0 && (
+        <div className="mt-4 mono text-[11px]">
+          <div className="text-white">{picked.length} files{skipped > 0 && <span className="text-[var(--muted)]"> · {skipped} skipped</span>} {hasIndex ? <span className="text-[var(--acid)]">· index.html ✓</span> : <span className="text-red-400">· no index.html ✗</span>}</div>
+          {progress && <div className="h-3 border-2 border-[var(--line)] mt-3"><div className="h-full bg-[var(--acid)] transition-all" style={{ width: `${pct}%` }} /></div>}
+          <button onClick={upload} disabled={!!progress || !hasIndex} className="btn-brut mt-4 disabled:opacity-50">{progress ? `Uploading ${progress.done}/${progress.total}…` : "Upload & publish"}</button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/* ── deploy full project to Vercel (per client) ── */
+function DeployModal({
+  slug, name, api, onClose, onOk, onErr,
+}: {
+  slug: string; name: string;
+  api: (p: string, o?: RequestInit) => Promise<Response>;
+  onClose: () => void; onOk: (m: string) => void; onErr: (m: string) => void;
+}) {
+  const [picked, setPicked] = useState<PickedFile[]>([]);
+  const [skipped, setSkipped] = useState(0);
+  const [oversize, setOversize] = useState<string[]>([]);
+  const [hasPkg, setHasPkg] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [phase, setPhase] = useState<string | null>(null);
+
+  function applyPicked(list: PickedFile[]) {
+    const kept: PickedFile[] = [];
+    let skip = 0;
+    for (const p of list) { if (!p.rel || isDeployJunk(p.rel)) { skip++; continue; } kept.push(p); }
+    setPicked(kept); setSkipped(skip);
+    setOversize(kept.filter((k) => k.file.size > 4 * 1024 * 1024).map((k) => k.rel));
+    setHasPkg(kept.some((k) => k.rel === "package.json"));
+  }
+
+  const busy = progress !== null || phase !== null;
+
+  async function deploy() {
+    if (!hasPkg) { onErr("No package.json at the project root — choose the project folder itself."); return; }
+    try {
+      setProgress({ done: 0, total: picked.length });
+      setPhase("Uploading project…");
+      const manifest: { file: string; sha: string; size: number }[] = [];
+      for (let i = 0; i < picked.length; i++) {
+        const { file, rel } = picked[i];
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await api("/api/dev/deploy/file", { method: "POST", body: fd });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(`Upload failed on ${rel}: ${d.error ?? res.status}`); }
+        const { sha, size } = await res.json();
+        manifest.push({ file: rel, sha, size });
+        setProgress({ done: i + 1, total: picked.length });
+      }
+      setProgress(null);
+      setPhase("Starting Vercel build…");
+      const cRes = await api("/api/dev/deploy/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, files: manifest }) });
+      const cData = await cRes.json();
+      if (!cRes.ok) throw new Error(cData.error ?? "Could not start deployment.");
+
+      const start = Date.now();
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 3500));
+        const sRes = await api(`/api/dev/deploy/status?id=${encodeURIComponent(cData.id)}&slug=${encodeURIComponent(slug)}`);
+        const sData = await sRes.json();
+        if (!sRes.ok) throw new Error(sData.error ?? "Status check failed.");
+        const st: string = sData.readyState ?? "QUEUED";
+        setPhase(`Vercel: ${st.toLowerCase()}…`);
+        if (st === "READY") { onOk(`Deployed "${name}" → ${sData.url} (live & gated).`); return; }
+        if (st === "ERROR" || st === "CANCELED") throw new Error(`Vercel build ${st.toLowerCase()} — check the build logs in your Vercel dashboard.`);
+        if (Date.now() - start > 8 * 60 * 1000) throw new Error("Build is taking unusually long — check Vercel; it may still finish.");
+      }
+    } catch (e) { onErr((e as Error).message); setPhase(null); setProgress(null); }
+  }
+
+  return (
+    <Modal sub={`Deploy to Vercel · ${name}`} title="Full project" onClose={onClose}>
+      <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
+        Drop the <strong className="text-white">whole project folder</strong> (with <span className="text-[var(--acid)]">package.json</span>) — even after a local npm install. node_modules/.git/.next/dist are skipped; Vercel runs install + build. For React/Next/Vite or anything needing a build or a server.
+      </p>
+      <FolderPicker label="Drop project folder here" onPicked={applyPicked} />
+      {picked.length > 0 && (
+        <div className="mt-4 mono text-[11px]">
+          <div className="text-white">{picked.length} files{skipped > 0 && <span className="text-[var(--muted)]"> · {skipped} skipped</span>} {hasPkg ? <span className="text-[var(--acid)]">· package.json ✓</span> : <span className="text-red-400">· no package.json ✗</span>}</div>
+          {oversize.length > 0 && <div className="text-amber-400 mt-1">⚠ {oversize.length} file(s) over 4MB may fail once GES is hosted on Vercel.</div>}
+          {progress && <div className="h-3 border-2 border-[var(--line)] mt-3"><div className="h-full bg-[var(--acid)] transition-all" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>}
+          <button onClick={deploy} disabled={busy || !hasPkg} className="btn-brut mt-4 disabled:opacity-50">{progress ? `Uploading ${progress.done}/${progress.total}…` : phase ? phase : "Deploy to Vercel"}</button>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -547,13 +676,9 @@ function Pill({ on, onText, offText }: { on: boolean; onText: string; offText: s
 }
 
 function Field({
-  label, value, onChange, placeholder, mono,
+  label, value, onChange, placeholder,
 }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  mono?: boolean;
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
   return (
     <label className="block">
@@ -562,7 +687,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full bg-transparent border-2 border-[var(--line)] px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--acid)] ${mono ? "mono" : ""}`}
+        className="w-full bg-transparent border-2 border-[var(--line)] px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--acid)]"
       />
     </label>
   );
@@ -584,7 +709,7 @@ function CodeReveal({ label, code, onClose }: { label: string; code: string; onC
         <h2 className="display text-2xl mb-3">Copy this now</h2>
         <p className="mono text-[11px] text-[var(--muted)] leading-relaxed mb-4">
           Shown <span className="text-white">once</span> — only its hash is stored, so it can&apos;t be shown
-          again. Send it to the client to unlock their preview. Lost it? Hit{" "}
+          again. Send it to the client (with their date of birth) to unlock their preview. Lost it? Hit{" "}
           <span className="text-white">New code</span> on the client below.
         </p>
         <div className="border-2 border-[var(--line)] bg-black p-3 mono text-[12px] break-all select-all text-white">

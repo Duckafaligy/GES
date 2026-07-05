@@ -6,7 +6,7 @@ import { getSupabaseAdmin, PREVIEW_BUCKET } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
-const COLUMNS = "id, slug, name, industry, status, preview_ready, expires_at, created_at";
+const COLUMNS = "id, slug, name, industry, status, preview_ready, deploy_url, dob, expires_at, created_at";
 
 function slugify(s: string): string {
   return s
@@ -45,9 +45,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const name = String(body?.name ?? "").trim();
   const industry = String(body?.industry ?? "").trim() || null;
+  const dob = String(body?.dob ?? "").trim() || null;
   const slugInput = String(body?.slug ?? "").trim();
 
   if (!name) return NextResponse.json({ error: "Name is required." }, { status: 400 });
+  if (!dob) return NextResponse.json({ error: "Date of birth is required (the client's personal login factor)." }, { status: 400 });
 
   // Codes are always generated here — a 64-char random string. We store only its
   // hash and return the plaintext once so the dev can copy it across to the client.
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await admin
     .from("clients")
-    .insert({ slug: candidate, name, industry, code_hash: hashCode(code), status: "active", preview_ready: false })
+    .insert({ slug: candidate, name, industry, dob, code_hash: hashCode(code), status: "active", preview_ready: false })
     .select(COLUMNS)
     .single();
 
@@ -87,6 +89,8 @@ export async function PATCH(req: NextRequest) {
   const patch: Record<string, unknown> = {};
   if (typeof body.status === "string" && ["active", "disabled"].includes(body.status)) patch.status = body.status;
   if (typeof body.preview_ready === "boolean") patch.preview_ready = body.preview_ready;
+  if (typeof body.deploy_url === "string") patch.deploy_url = body.deploy_url.trim() || null;
+  else if (body.deploy_url === null) patch.deploy_url = null;
 
   // Optionally mint a fresh 64-char code (old one stops working) and return it once.
   let newCode: string | null = null;

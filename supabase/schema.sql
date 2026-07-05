@@ -19,11 +19,17 @@ create table if not exists public.clients (
   code_hash     text not null,                 -- SHA-256 of the access code (no plaintext stored)
   status        text not null default 'active' check (status in ('active','disabled')),
   preview_ready boolean not null default false,-- false → shows "Preview is not finished"
+  deploy_url    text,                          -- Vercel deployment URL; if set, the preview iframes this
+  dob           text,                          -- client's date of birth (YYYY-MM-DD); a personal 2nd factor at login
   expires_at    timestamptz,                   -- optional auto-expiry
   created_at    timestamptz not null default now()
 );
 
 create unique index if not exists clients_code_hash_key on public.clients (code_hash);
+
+-- For databases created before these columns existed:
+alter table public.clients add column if not exists deploy_url text;
+alter table public.clients add column if not exists dob text;
 
 -- Lock it down: only the service-role key (used by the Next server) can touch it.
 -- No policies = no anon/public access. service_role bypasses RLS.

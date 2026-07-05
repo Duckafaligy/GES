@@ -28,11 +28,13 @@ export interface Client {
   industry: string | null;
   status: "active" | "disabled";
   preview_ready: boolean;
+  deploy_url: string | null;
+  dob: string | null;
   expires_at: string | null;
   created_at: string;
 }
 
-const COLUMNS = "id, slug, name, industry, status, preview_ready, expires_at, created_at";
+const COLUMNS = "id, slug, name, industry, status, preview_ready, deploy_url, dob, expires_at, created_at";
 
 /** SHA-256 of an access code — what we store, never the plaintext. */
 export function hashCode(code: string): string {

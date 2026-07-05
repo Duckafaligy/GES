@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 export const PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // client preview access — 2 hours
 export const DEV_TTL_MS = 8 * 60 * 60 * 1000; // developer dashboard — 8 hours
 
-type Purpose = "preview" | "dev";
+type Purpose = "preview" | "dev" | "demo";
 
 interface Payload {
   p: Purpose;

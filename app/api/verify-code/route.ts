@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const code: string = body?.code ?? "";
     const business: string = typeof body?.business === "string" ? body.business.trim() : "";
+    const dob: string = typeof body?.dob === "string" ? body.dob.trim() : "";
 
     if (!code || typeof code !== "string" || code.trim().length < 4) {
       return NextResponse.json({ error: "Please enter a valid access code." }, { status: 400 });
@@ -25,10 +26,14 @@ export async function POST(req: NextRequest) {
     if (business && client.slug !== business) {
       return NextResponse.json({ error: "That code isn't for this preview." }, { status: 401 });
     }
+    // Personal second factor: if a date of birth is on file, it must match.
+    if (client.dob && client.dob !== dob) {
+      return NextResponse.json({ error: "The date of birth or code doesn't match our records." }, { status: 401 });
+    }
 
     // No cookie — a short-lived token is held in sessionStorage by the page.
     const token = signToken("preview", client.slug, PREVIEW_TTL_MS);
-    return NextResponse.json({ token, name: client.name, slug: client.slug });
+    return NextResponse.json({ token, name: client.name, slug: client.slug, deployUrl: client.deploy_url ?? null });
   } catch {
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }

@@ -186,10 +186,17 @@ Variables. Add clients in the dashboard (recommended) or via
 `node --env-file=.env.local scripts/add-client.mjs "Business Name"` — the script
 prints the generated access code.
 
-**Upload only the build output**, never the project source: plain HTML as-is,
-Vite/React → `dist/`, Next.js → `output: 'export'` then `out/`. A site that needs
-a running server can't be static-hosted here — store a link to its real deployment
-instead.
+**Static upload — build output only**, never the project source: plain HTML as-is,
+Vite/React → `dist/`, Next.js → `output: 'export'` then `out/`.
+
+**Or deploy a full project to Vercel.** The dashboard's *Deploy Project to Vercel*
+panel takes the whole project folder (with `package.json`; `node_modules`/`.git`/
+`.next`/`dist` are skipped — Vercel runs install + build), uploads it via the Vercel
+API (`lib/vercel.ts` + `app/api/dev/deploy/{file,create,status}`), polls the build,
+and saves the live URL to `clients.deploy_url`. When set, the preview iframes that
+URL instead of the static `/raw` build — so React/Next/Vite/SSR projects just work.
+Needs `VERCEL_TOKEN` (+ optional `VERCEL_TEAM_ID`). The Vercel URL is itself public,
+so enable Vercel's deployment protection for true privacy.
 
 > **Next.js export caveat.** A Next `out/` renders, but its client-side router
 > builds absolute `/_next/…` URLs at runtime that can't be rewritten server-side.
@@ -254,6 +261,46 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - **Hardening.** Client delete now removes Storage files **recursively**; the
   uploader warns about files over Vercel's ~4.5 MB request limit; client-login
   placeholders updated and the public demo-codes hint removed.
+
+### v0.8.0 — Stripe checkout + secure delivery
+- **Buy** on `/templates/[slug]` → **Stripe Checkout** (test mode) per format → the
+  success page verifies the paid session and returns a **short-lived signed download
+  URL** for that artifact. `/api/stripe/webhook` marks the order paid + captures the
+  buyer email.
+- New: `lib/stripe.ts`, `app/api/checkout`, `app/api/stripe/webhook`, `app/api/download`,
+  `app/checkout/success`, `app/templates/[slug]/BuyButton.tsx`.
+- Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+- Next: buyer accounts + My Purchases (#19) for permanent re-downloads.
+
+### v0.7.0 — template marketplace (Phase 1)
+- **Pivot to a marketplace**: public storefront `/templates` + product pages
+  `/templates/[slug]`, **email-gated live demos**, buyer-facing format/price layout.
+- **Admin template importer** (dashboard → Templates tab): create/publish templates,
+  upload a thumbnail + a live demo build (folder) or Vercel URL, and add **per-format
+  artifacts** — each accepts a **folder (zipped in-browser via JSZip)** or a ready
+  **.zip** (raw / shopify / html / next / wordpress / …).
+- New: `supabase/marketplace.sql` (templates, template_formats, demo_leads, orders +
+  `templates` and public `template-thumbnails` buckets), `lib/templates.ts`,
+  `lib/serve.ts`, `app/api/dev/templates/*`, `app/api/demo`, `app/template-demo/[token]`.
+- Legacy client portal kept under the dashboard's **Clients (legacy)** tab.
+- Next: Stripe checkout + secure delivery, then buyer accounts.
+
+### v0.6.0 — per-client dashboard + DOB login
+- **Two-factor preview login:** clients enter **date of birth + access code** (DOB is
+  set on the client when added; verified in `/api/verify-code`).
+- **Per-client dashboard:** removed the global Upload/Deploy panels and the
+  target-client dropdown — each client card now has its own **Upload build** /
+  **Deploy project** modals, an **Open ↗** to the live preview, and a **live
+  thumbnail** (via `deploy_url`, or a dev-minted preview token at
+  `/api/dev/preview-token`). Access codes are auto-generated 64-char keys shown once.
+
+### v0.5.0 — deploy full projects to Vercel
+- **Deploy Project to Vercel** dashboard panel: drag a whole project folder (even
+  after a local `npm install` — `node_modules` is skipped); the server uploads it to
+  the Vercel API, Vercel installs + builds, and the live URL is saved to
+  `clients.deploy_url`. The preview iframes `deploy_url` when set, else the static
+  `/raw` build — so projects needing a build/SSR work. New: `lib/vercel.ts`,
+  `app/api/dev/deploy/{file,create,status}`, `deploy_url` column, `VERCEL_TOKEN` env.
 
 ### v0.4.0 — database-backed client previews
 - **Supabase** replaces `data/clients.json`: a `clients` table + a private
