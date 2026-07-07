@@ -55,31 +55,38 @@ function rewriteCss(css: string, base: string): string {
 /** Inject <base> and rewrite root-absolute URLs so any static build resolves. */
 function rewriteHtml(html: string, base: string): string {
   let out = html;
-  // 1) <base> for relative URLs
-  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${base}">`);
-  else out = `<base href="${base}">` + out;
-  // 2) root-absolute attribute URLs (skip protocol-relative "//")
+  // 1) root-absolute attribute URLs (skip protocol-relative "//")
   out = out.replace(/(\s(?:src|href|poster)\s*=\s*["'])\/(?!\/)/gi, (_m, p) => `${p}${base}`);
-  // 3) srcset (comma-separated "url descriptor" pairs)
+  // 2) srcset (comma-separated "url descriptor" pairs)
   out = out.replace(/(\ssrcset\s*=\s*["'])([^"']*)(["'])/gi, (_m, pre, val, post) =>
     `${pre}${(val as string).replace(/(^|,\s*)\/(?!\/)/g, (_x, sep) => `${sep}${base}`)}${post}`
   );
-  // 4) url()/@import inside inline styles + <style> blocks
+  // 3) url()/@import inside inline styles + <style> blocks
   out = rewriteCss(out, base);
+  // 4) <base> for relative URLs — injected LAST so its own root-absolute href
+  //    (it starts with "/raw/…") isn't re-prefixed by the rewrite in step 1.
+  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${base}">`);
+  else out = `<base href="${base}">` + out;
   return out;
 }
 
 function shell(title: string, inner: string, status = 200): NextResponse {
+  // Matches the portal's glass look (acid-edged frosted card on near-black with
+  // a faint masked grid + ambient glow) so these in-iframe states feel branded.
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex"/>
 <title>${title}</title>
 <style>
   *{box-sizing:border-box;margin:0}html,body{height:100%}
-  body{background:#0a0a0a;color:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;display:grid;place-items:center;padding:24px;text-align:center}
-  .box{border:2px solid #fff;box-shadow:8px 8px 0 #ccff00;padding:44px 34px;max-width:560px}
-  .tag{display:inline-block;background:#ccff00;color:#0a0a0a;font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:11px;padding:6px 10px;margin-bottom:22px}
-  h1{font-size:clamp(1.4rem,5vw,2.2rem);line-height:1.12;text-transform:uppercase;letter-spacing:-.01em;margin-bottom:16px}
-  p{color:#9a9a9a;font-size:14px;line-height:1.65}a{color:#ccff00;text-decoration:none;border-bottom:2px solid #ccff00}
+  body{position:relative;background:#070707;color:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;display:grid;place-items:center;padding:24px;text-align:center;overflow:hidden}
+  body::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(204,255,0,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(204,255,0,.05) 1px,transparent 1px);background-size:38px 38px;-webkit-mask-image:radial-gradient(ellipse 80% 80% at 50% 40%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse 80% 80% at 50% 40%,#000 30%,transparent 75%)}
+  body::after{content:"";position:absolute;top:18%;left:30%;width:340px;height:340px;background:rgba(204,255,0,.07);border-radius:50%;filter:blur(64px);pointer-events:none}
+  .box{position:relative;z-index:1;background:rgba(255,255,255,.04);backdrop-filter:blur(22px) saturate(135%);-webkit-backdrop-filter:blur(22px) saturate(135%);border:1px solid rgba(204,255,0,.14);border-radius:24px;box-shadow:0 24px 70px -24px rgba(0,0,0,.82);padding:46px 36px;max-width:560px;animation:in .5s ease-out both}
+  @keyframes in{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  .tag{display:inline-block;background:rgba(204,255,0,.1);color:rgba(204,255,0,.9);border:1px solid rgba(204,255,0,.25);border-radius:999px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;font-size:10px;padding:6px 12px;margin-bottom:22px}
+  h1{font-size:clamp(1.4rem,5vw,2.1rem);line-height:1.14;letter-spacing:-.01em;margin-bottom:14px;font-family:system-ui,-apple-system,sans-serif;font-weight:800}
+  p{color:#9a9a9a;font-size:14px;line-height:1.65}a{color:#ccff00;text-decoration:none;border-bottom:1px solid rgba(204,255,0,.5)}a:hover{border-bottom-color:#ccff00}
+  @media (prefers-reduced-motion:reduce){.box{animation:none}}
 </style></head><body><div class="box">${inner}</div></body></html>`;
   return new NextResponse(html, {
     status,
@@ -87,12 +94,12 @@ function shell(title: string, inner: string, status = 200): NextResponse {
   });
 }
 
-const notFinishedPage = () =>
+const notFinishedPage = (name?: string) =>
   shell(
     "Preview in progress — GES",
     `<span class="tag">GES Client Preview</span>
-     <h1>Preview is not finished —<br/>check back in a day.</h1>
-     <p>We're still building your site. You'll be able to view it right here with the same code shortly.<br/><br/>Questions? <a href="/#contact">Contact us</a>.</p>`
+     <h1>Your code works${name ? ` — ${name}'s` : "'s"}<br/>preview isn't ready just yet.</h1>
+     <p>We're putting the finishing touches on your site. Check back in a day or so and it'll appear right here with the same code.<br/><br/>Questions? <a href="/#contact">Contact us</a>.</p>`
   );
 
 const expiredPage = () =>
@@ -124,7 +131,7 @@ export async function GET(
   const slug = payload.sub;
   const client = await findClientBySlug(slug);
   if (!client || client.status !== "active") return expiredPage();
-  if (!client.preview_ready) return notFinishedPage();
+  if (!client.preview_ready) return notFinishedPage(client.name);
 
   const rel = (path && path.length ? path.join("/") : "index.html").replace(/^\/+/, "");
   if (rel.includes("..")) return new NextResponse("Not found", { status: 404 });
@@ -140,7 +147,7 @@ export async function GET(
   }
 
   if (dl.error || !dl.data) {
-    if (rel === "index.html") return notFinishedPage();
+    if (rel === "index.html") return notFinishedPage(client.name);
     return new NextResponse("Not found", { status: 404 });
   }
 

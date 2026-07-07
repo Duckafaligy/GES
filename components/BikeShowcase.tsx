@@ -73,9 +73,9 @@ const PartLabel = forwardRef<HTMLDivElement, { part: Part; index: number; rect: 
       >
         {/* Acid border + white text reads instantly against the black void; the
             dark offset shadow keeps it from blending where it overlaps the bike. */}
-        <span className="inline-flex items-center gap-2 bg-[#0a0a0a] border-2 border-[#ccff00] px-2.5 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,0.9)]">
-          <span className="w-2 h-2 bg-[#ccff00]" />
-          <span className="mono text-[11px] font-bold uppercase tracking-[0.16em] text-white whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 sm:gap-2 bg-[#0a0a0a] border border-[#ccff00] sm:border-2 px-1.5 py-0.5 sm:px-2.5 sm:py-1.5 shadow-[2px_2px_0_rgba(0,0,0,0.9)] sm:shadow-[3px_3px_0_rgba(0,0,0,0.9)]">
+          <span className="w-1 h-1 sm:w-2 sm:h-2 bg-[#ccff00]" />
+          <span className="mono text-[8px] sm:text-[11px] font-bold uppercase tracking-[0.1em] sm:tracking-[0.16em] text-white whitespace-nowrap">
             {String(index + 1).padStart(2, "0")} {part.label}
           </span>
         </span>
@@ -273,9 +273,9 @@ export default function BikeShowcase() {
         <div
           ref={headingRef}
           style={{ opacity: 1 }}
-          className="absolute top-0 left-0 right-0 z-20 pt-24 sm:pt-28 px-6 text-center pointer-events-none"
+          className="absolute top-0 left-0 right-0 z-20 pt-20 sm:pt-28 px-6 text-center pointer-events-none"
         >
-          <h2 className="display text-[clamp(2rem,6vw,4.5rem)] text-white">
+          <h2 className="display text-[1.1rem] sm:text-[clamp(2rem,6vw,4.5rem)] text-white">
             Products Your Customers{" "}
             <span className="inline-block bg-[#ccff00] text-[#0a0a0a] px-2">
               Take Apart

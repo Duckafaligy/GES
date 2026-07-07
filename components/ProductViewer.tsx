@@ -210,7 +210,7 @@ export default function ProductViewer({
       <div className="eyebrow text-[var(--muted)] mb-4">Live 360° Preview</div>
       <div
         ref={wrapRef}
-        className="relative w-full mx-auto overflow-hidden bg-[#0a0a0a] select-none cursor-grab active:cursor-grabbing"
+        className="relative w-full mx-auto overflow-hidden bg-[#0a0a0a] border-2 border-[var(--line)] shadow-[6px_6px_0_0_var(--line)] select-none cursor-grab active:cursor-grabbing"
         style={{
           aspectRatio: aspect,
           maxHeight: "80vh",

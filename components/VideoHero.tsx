@@ -4,13 +4,6 @@ import { useRef, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, ArrowDown } from "lucide-react";
 
-const stats = [
-  { value: "100%", label: "Client Satisfaction" },
-  { value: "3×", label: "Avg Conversion Lift" },
-  { value: "21d", label: "Deposit → Live" },
-  { value: "3D", label: "Product Rendering" },
-];
-
 export default function VideoHero() {
   const ref = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -23,80 +16,87 @@ export default function VideoHero() {
   const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
   const videoScale = useTransform(scrollYProgress, [0, 1], [1.05, 1.18]);
 
-  // Seamless loop. Product-hero clips often hold on the final frame for up to a
-  // second before restarting, which reads as a dead pause. We learn where that
-  // trailing freeze begins: on the first pass we sample tiny frames into an
-  // offscreen canvas and note when the picture stops changing in the back half
-  // of the clip. From then on we cut a hair *before* that point on every loop,
-  // so the hold never plays and there's no visible seam — no fixed guess.
+  // Make the hero animate on EVERY device. We try smooth native playback first
+  // (desktop/most phones allow muted inline autoplay). But some platforms
+  // — iPadOS, Low-Power-Mode, strict tablets — HARD-refuse muted autoplay, and
+  // no play() call can override that. So as a guaranteed fallback we drive the
+  // frames ourselves by stepping `currentTime` in a rAF loop: seeking needs no
+  // autoplay permission, so the clip still moves where play() is blocked.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = 32;
-    canvas.height = 18;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
+    // React doesn't reliably set the muted *property* from the JSX attribute,
+    // and browsers only autoplay provably-muted video — set it on the node.
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("muted", "");
+    v.playsInline = true;
 
-    let prev: Uint8ClampedArray | null = null;
-    let frozenMs = 0;
-    let cutAt = Infinity; // learned cut time (s); the hold begins just after it
-    let acc = 0;
-    let last = performance.now();
+    const tryPlay = () => { v.muted = true; v.play().catch(() => {}); };
+    tryPlay();
+
+    const onReady = () => tryPlay();
+    v.addEventListener("loadeddata", onReady);
+    v.addEventListener("canplay", onReady);
+    v.addEventListener("loadedmetadata", onReady);
+    const onVisible = () => { if (!document.hidden) tryPlay(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    // Start on the first user interaction too (covers gesture-required cases).
+    const kickEvents = ["pointerdown", "touchstart", "click", "keydown", "scroll"] as const;
+    const kick = () => tryPlay();
+    kickEvents.forEach((e) => window.addEventListener(e, kick, { passive: true }));
+
+    // Re-attempt native play for a few seconds (handles deferred autoplay).
+    let tries = 0;
+    const poll = setInterval(() => {
+      if (!v.paused || tries++ > 20) { clearInterval(poll); return; }
+      tryPlay();
+    }, 400);
+
+    // The clip holds on its final frame for ~1s before the end (measured with
+    // ffmpeg: it goes static ~6.9s into the 7.96s file). Native `loop` only
+    // restarts at the very end, so that hold reads as a dead pause every loop.
+    // We restart early — just before the hold — so the loop is seamless.
+    const TRAIL_TRIM = 1.4; // seconds of trailing static hold to skip (tuned to the clip)
+    const loopEndOf = (d: number) => (d > 2 ? d - TRAIL_TRIM : d);
+
+    // Manual-scrub fallback: if it's STILL paused after a short grace (autoplay
+    // hard-blocked), advance the frame ourselves ~24fps so it animates anyway.
+    const GRACE_MS = 1500;
+    const FRAME_MS = 1000 / 24;
+    const t0 = performance.now();
+    let lastSeek = 0;
     let raf = 0;
-    const SAMPLE_MS = 80; // ~12 samples/sec — trivial on a 32×18 canvas
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      const d = v.duration;
+      if (!Number.isFinite(d) || d === 0) return;
+      const loopEnd = loopEndOf(d);
 
-    const restart = () => {
-      prev = null;
-      frozenMs = 0;
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    };
-
-    const tick = (now: number) => {
-      raf = requestAnimationFrame(tick);
-      const dt = now - last;
-      last = now;
-      if (v.paused || !v.videoWidth || !Number.isFinite(v.duration)) return;
-
-      // Once the hold point is known, cut just before it — checked every frame.
-      if (v.currentTime >= cutAt) {
-        restart();
+      if (!v.paused) {
+        // Native playback: jump back before the trailing freeze → no dead pause.
+        if (v.currentTime >= loopEnd) { try { v.currentTime = 0; } catch {} }
         return;
       }
-      if (Number.isFinite(cutAt)) return; // learned already; idle until the cut
-
-      // First pass only: sample frames to find where motion stops.
-      acc += dt;
-      if (acc < SAMPLE_MS) return;
-      acc = 0;
-
-      ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-      const cur = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-      if (prev) {
-        let diff = 0;
-        for (let i = 0; i < cur.length; i += 4) {
-          diff += Math.abs(cur[i] - prev[i]) + Math.abs(cur[i + 1] - prev[i + 1]);
-        }
-        const changed = diff / (cur.length / 4); // avg channel delta per pixel
-        if (changed < 1.5) frozenMs += SAMPLE_MS;
-        else frozenMs = 0;
-      }
-      prev = cur;
-
-      // Back half + the frame has held still = trailing hold. Record where it
-      // began (≈ now − how long it's been still) and cut ~3 frames earlier so
-      // even the first hint of the freeze never plays.
-      if (frozenMs >= 160 && v.currentTime > v.duration * 0.5) {
-        cutAt = Math.max(0.1, v.currentTime - frozenMs / 1000 - 0.1);
-        restart();
-      }
+      // Paused (autoplay blocked): drive frames ourselves, looping at loopEnd.
+      if (now - t0 < GRACE_MS) return;     // give real autoplay a chance first
+      if (now - lastSeek < FRAME_MS) return;
+      lastSeek = now;
+      try { v.currentTime = ((now - t0 - GRACE_MS) / 1000) % loopEnd; } catch { /* not seekable yet */ }
     };
+    raf = requestAnimationFrame(frame);
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(poll);
+      v.removeEventListener("loadeddata", onReady);
+      v.removeEventListener("canplay", onReady);
+      v.removeEventListener("loadedmetadata", onReady);
+      document.removeEventListener("visibilitychange", onVisible);
+      kickEvents.forEach((e) => window.removeEventListener(e, kick));
+    };
   }, []);
 
   return (
@@ -160,27 +160,15 @@ export default function VideoHero() {
 
         {/* CTAs */}
         <div className="entry-d3 flex flex-wrap gap-4 mt-9">
-          <a href="#contact">
-            <button className="btn-brut">
-              Book a Meeting <ArrowRight size={16} />
-            </button>
-          </a>
+          <button
+            className="btn-brut"
+            onClick={() => window.dispatchEvent(new Event("ges:book"))}
+          >
+            Book a Meeting <ArrowRight size={16} />
+          </button>
           <a href="#services">
             <button className="btn-ghost">What We Build</button>
           </a>
-        </div>
-
-        {/* Stat cells */}
-        <div className="entry-d4 grid grid-cols-2 md:grid-cols-4 border-t-2 border-l-2 border-current mt-12 max-w-3xl">
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="border-b-2 border-r-2 border-current p-5 backdrop-blur-[2px]"
-            >
-              <div className="display text-3xl md:text-4xl">{s.value}</div>
-              <div className="eyebrow mt-2 text-[var(--muted)]">{s.label}</div>
-            </div>
-          ))}
         </div>
       </motion.div>
 

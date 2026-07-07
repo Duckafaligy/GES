@@ -37,6 +37,13 @@ export default function LoginPage() {
         return;
       }
 
+      // Valid code, but the preview hasn't been published yet.
+      if (data.pending) {
+        setSuccess(`Your code works — but ${data.name}'s preview isn't quite ready yet. Please check back in a day or so.`);
+        setLoading(false);
+        return;
+      }
+
       setSuccess(`Welcome, ${data.name}! Loading your preview...`);
       // No cookie: keep the token in sessionStorage for this session only.
       try {
@@ -53,12 +60,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070707] flex items-center justify-center px-6 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 grid-pattern" />
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-blue-600/8 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-purple-600/8 rounded-full blur-3xl animate-float-d1" />
+        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-[#ccff00]/[0.07] rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-[#e0a11e]/[0.06] rounded-full blur-3xl animate-float-d1" />
       </div>
 
       {/* Back to home */}
@@ -82,23 +89,23 @@ export default function LoginPage() {
         className="relative z-10 w-full max-w-md"
       >
         {/* Ambient gradient glow behind the card */}
-        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-blue-500/30 via-purple-500/25 to-transparent blur-2xl opacity-70 pointer-events-none" />
+        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-[#ccff00]/25 via-[#e0a11e]/15 to-transparent blur-2xl opacity-70 pointer-events-none" />
 
         <div className="relative glass rounded-3xl p-10">
           {/* Icon */}
           <motion.div
             animate={{ rotate: [0, -5, 5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/25"
+            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--acid)] to-[var(--acid-deep)] flex items-center justify-center mx-auto mb-8 shadow-[0_0_44px_-4px_rgba(204,255,0,0.45)]"
           >
-            <Lock size={26} className="text-white" />
+            <Lock size={26} className="text-[#0a0a0a]" />
           </motion.div>
 
           <h1 className="text-3xl font-black text-center mb-3 bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
             Client Portal
           </h1>
           <div className="flex justify-center mb-5">
-            <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-blue-300/80 bg-blue-500/10 border border-blue-400/20 rounded-full px-3 py-1">
+            <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-[#ccff00]/90 bg-[#ccff00]/10 border border-[#ccff00]/25 rounded-full px-3 py-1">
               <ShieldCheck size={11} /> Private · Encrypted Access
             </span>
           </div>
@@ -130,7 +137,7 @@ export default function LoginPage() {
                   value={code}
                   onChange={(e) => { setCode(e.target.value); setError(""); }}
                   placeholder="Paste your access code"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/8 transition-all pr-12 font-mono"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#ccff00]/60 focus:bg-white/8 transition-all pr-12 font-mono"
                   autoComplete="off"
                   spellCheck={false}
                 />
@@ -181,7 +188,7 @@ export default function LoginPage() {
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   Verifying...
                 </>
               ) : (
@@ -195,9 +202,9 @@ export default function LoginPage() {
           <div className="mt-8 pt-6 border-t border-white/8 text-center">
             <p className="text-gray-600 text-xs">
               Don&apos;t have a code?{" "}
-              <a href="/#contact" className="text-blue-400 hover:text-blue-300 transition-colors">
+              <Link href="/#contact" className="text-[#ccff00] hover:text-[#aee000] transition-colors">
                 Contact us to get started →
-              </a>
+              </Link>
             </p>
           </div>
         </div>

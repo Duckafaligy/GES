@@ -3,19 +3,30 @@ import { createHmac, timingSafeEqual } from "crypto";
 // Short-lived, stateless, signed tokens. No cookies, no server-side session store.
 export const PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // client preview access — 2 hours
 export const DEV_TTL_MS = 8 * 60 * 60 * 1000; // developer dashboard — 8 hours
+export const BOOKER_TTL_MS = 2 * 60 * 60 * 1000; // verified booking email — 2 hours
+export const MANAGE_TTL_MS = 60 * 24 * 60 * 60 * 1000; // booking manage link — 60 days
 
-type Purpose = "preview" | "dev" | "demo";
+type Purpose = "preview" | "dev" | "demo" | "booker" | "manage";
 
 interface Payload {
   p: Purpose;
-  sub: string; // preview → client slug; dev → "dev"
+  sub: string; // preview → slug; dev → "dev"; booker → email; manage → booking id
   exp: number; // epoch ms
 }
 
+// Dev-only fallback so the dashboard + previews work with no env setup locally.
+// In production SESSION_SECRET is REQUIRED — we never sign with this public,
+// in-repo value on a live deploy (otherwise anyone could forge dev/preview
+// tokens). Set SESSION_SECRET in .env.local locally and in Vercel env vars.
+const DEFAULT_SECRET = "ges-dev-insecure-default-secret-set-SESSION_SECRET-in-prod";
+
 function secret(): string {
   const s = process.env.SESSION_SECRET;
-  if (!s) throw new Error("SESSION_SECRET not configured in .env.local");
-  return s;
+  if (s) return s;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be set in production (Vercel env vars).");
+  }
+  return DEFAULT_SECRET;
 }
 
 const b64u = (buf: Buffer) => buf.toString("base64url");

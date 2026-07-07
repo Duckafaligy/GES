@@ -11,7 +11,9 @@ const navLinks = [
   { label: "Ownership", href: "#ownership" },
   { label: "3D", href: "#3d-features" },
   { label: "Process", href: "#process" },
+  { label: "Work", href: "#work" },
   { label: "Contact", href: "#contact" },
+  { label: "Book", href: "#book" },
 ];
 
 const tickerItems = [

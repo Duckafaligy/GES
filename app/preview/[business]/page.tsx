@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, ArrowRight, Globe, Eye, EyeOff, XCircle } from "lucide-react";
+import { Lock, ArrowRight, Globe, Eye, EyeOff, XCircle, X } from "lucide-react";
 import Link from "next/link";
 
 const b64urlDecode = (s: string) => {
@@ -26,23 +26,34 @@ export default function BusinessPreview() {
 
   const [checked, setChecked] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  const [dob, setDob] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [frameLoaded, setFrameLoaded] = useState(false);
+  // Personalization: business name for this slug (null = unknown/404).
+  const [meta, setMeta] = useState<{ name: string } | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    const t = sessionStorage.getItem(`ges_pt_${business}`);
-    if (t && tokenExp(t) > Date.now()) {
-      setToken(t);
-      setDeployUrl(sessionStorage.getItem(`ges_pd_${business}`));
-    } else if (t) {
-      sessionStorage.removeItem(`ges_pt_${business}`);
-      sessionStorage.removeItem(`ges_pd_${business}`);
-    }
+    const key = `ges_pt_${business}`;
+    const t = sessionStorage.getItem(key);
+    if (t && tokenExp(t) > Date.now()) setToken(t);
+    else if (t) sessionStorage.removeItem(key);
     setChecked(true);
+  }, [business]);
+
+  // Greet the prospect by name — falls back to generic copy if unavailable.
+  useEffect(() => {
+    if (!business) return;
+    let cancelled = false;
+    fetch(`/api/preview-meta?business=${encodeURIComponent(business)}`)
+      .then((r) => (r.status === 404 ? Promise.reject("nf") : r.json()))
+      .then((d) => {
+        if (!cancelled && d?.found) setMeta({ name: d.name });
+      })
+      .catch((e) => { if (!cancelled && e === "nf") setNotFound(true); });
+    return () => { cancelled = true; };
   }, [business]);
 
   async function submit(e: React.FormEvent) {
@@ -54,7 +65,7 @@ export default function BusinessPreview() {
       const res = await fetch("/api/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim(), business, dob }),
+        body: JSON.stringify({ code: code.trim(), business }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -62,10 +73,12 @@ export default function BusinessPreview() {
         setLoading(false);
         return;
       }
+      if (data.pending) {
+        setError(`Your code works — but ${data.name ?? "this"} preview isn't quite ready yet. Please check back in a day or so.`);
+        setLoading(false);
+        return;
+      }
       sessionStorage.setItem(`ges_pt_${business}`, data.token);
-      if (data.deployUrl) sessionStorage.setItem(`ges_pd_${business}`, data.deployUrl);
-      else sessionStorage.removeItem(`ges_pd_${business}`);
-      setDeployUrl(data.deployUrl ?? null);
       setToken(data.token);
     } catch {
       setError("Network error. Please try again.");
@@ -75,39 +88,75 @@ export default function BusinessPreview() {
 
   function exit() {
     sessionStorage.removeItem(`ges_pt_${business}`);
-    sessionStorage.removeItem(`ges_pd_${business}`);
     setToken(null);
-    setDeployUrl(null);
     setCode("");
     setLoading(false);
   }
 
-  if (!checked) return <div className="min-h-screen bg-[#030712]" />;
+  if (!checked) return <div className="min-h-screen bg-[#070707]" />;
 
   // ── Authed: show the gated build full-screen ──
   if (token) {
     return (
-      <div className="min-h-screen bg-[#030712] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-2 text-xs glass border-b border-white/10 flex-shrink-0">
-          <span className="flex items-center gap-2 text-blue-300/90 font-semibold tracking-wider uppercase">
+      <div className="min-h-screen bg-[#070707] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-2.5 glass border-b border-[#ccff00]/10 flex-shrink-0">
+          <span className="flex items-center gap-2.5 text-[#ccff00]/90 font-semibold tracking-[0.18em] uppercase text-[11px]">
+            <span className="w-5 h-5 rounded bg-[var(--acid)] text-[#0a0a0a] grid place-items-center font-black text-[11px]">G</span>
             <Lock size={11} /> GES Client Preview
+            {meta?.name && <span className="hidden sm:inline text-gray-400 normal-case tracking-normal font-normal">— {meta.name}</span>}
           </span>
-          <button onClick={exit} className="text-gray-400 hover:text-white transition-colors">
-            Exit preview
+          <button onClick={exit} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs">
+            <X size={13} /> Exit preview
           </button>
         </div>
-        <iframe src={deployUrl || `/raw/${token}`} className="flex-1 w-full border-0" title="GES Client Preview" />
+        {/* Sandbox without allow-same-origin: the uploaded build runs as an
+            opaque origin, so its scripts can't read this page's sessionStorage
+            (the preview token). Static assets still load over /raw/<token>/. */}
+        <div className="relative flex-1">
+          {!frameLoaded && (
+            <div className="absolute inset-0 z-10 grid place-items-center bg-[#070707]">
+              <div className="flex flex-col items-center gap-4">
+                <span className="w-9 h-9 border-2 border-[#ccff00]/25 border-t-[#ccff00] rounded-full animate-spin" />
+                <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-gray-500">Loading your preview…</span>
+              </div>
+            </div>
+          )}
+          <iframe
+            src={`/raw/${token}`}
+            onLoad={() => setFrameLoaded(true)}
+            sandbox="allow-scripts allow-forms allow-popups"
+            className="absolute inset-0 w-full h-full border-0"
+            title="GES Client Preview"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Unknown slug: clear dead-end instead of a code box that can never work ──
+  if (notFound && !token) {
+    return (
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center px-6 relative overflow-hidden">
+        <div className="absolute inset-0 grid-pattern" />
+        <div className="relative z-10 glass rounded-3xl p-10 max-w-md text-center">
+          <h1 className="text-2xl font-black mb-3 text-white">No preview at this address</h1>
+          <p className="text-gray-400 text-sm leading-relaxed mb-6">
+            We couldn&apos;t find a client preview for &ldquo;{business}&rdquo;. Double-check the link
+            from your call, or get in touch and we&apos;ll sort it out.
+          </p>
+          <Link href="/#contact" className="btn-primary inline-flex">Contact GES <ArrowRight size={16} /></Link>
+        </div>
       </div>
     );
   }
 
   // ── Code prompt ──
   return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070707] flex items-center justify-center px-6 relative overflow-hidden">
       <div className="absolute inset-0 grid-pattern" />
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-blue-600/8 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-purple-600/8 rounded-full blur-3xl animate-float-d1" />
+        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-[#ccff00]/[0.07] rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-[#e0a11e]/[0.06] rounded-full blur-3xl animate-float-d1" />
       </div>
 
       <div className="absolute top-6 left-6">
@@ -124,34 +173,26 @@ export default function BusinessPreview() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-blue-500/30 via-purple-500/25 to-transparent blur-2xl opacity-70 pointer-events-none" />
+        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-[#ccff00]/25 via-[#e0a11e]/15 to-transparent blur-2xl opacity-70 pointer-events-none" />
         <div className="relative glass rounded-3xl p-10">
           <motion.div
             animate={{ rotate: [0, -5, 5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/25"
+            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--acid)] to-[var(--acid-deep)] flex items-center justify-center mx-auto mb-8 shadow-[0_0_44px_-4px_rgba(204,255,0,0.45)]"
           >
-            <Lock size={26} className="text-white" />
+            <Lock size={26} className="text-[#0a0a0a]" />
           </motion.div>
 
           <h1 className="text-3xl font-black text-center mb-3 bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
-            Your Preview
+            {meta?.name ?? "Your Preview"}
           </h1>
           <p className="text-gray-400 text-sm text-center mb-8 leading-relaxed">
-            Enter the access code from your consultation call to unlock the website
-            preview we built for your business.
+            {meta?.name
+              ? `Enter the access code from your consultation call to unlock the website preview we built for ${meta.name}.`
+              : "Enter the access code from your consultation call to unlock the website preview we built for your business."}
           </p>
 
           <form onSubmit={submit} className="space-y-4">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-widest mb-2 block">Date of Birth</label>
-              <input
-                type="date"
-                value={dob}
-                onChange={(e) => { setDob(e.target.value); setError(""); }}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/8 transition-all font-mono [color-scheme:dark]"
-              />
-            </div>
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-widest mb-2 block">Access Code</label>
               <div className="relative">
@@ -163,7 +204,7 @@ export default function BusinessPreview() {
                   autoFocus
                   autoComplete="off"
                   spellCheck={false}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/8 transition-all pr-12 font-mono"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#ccff00]/60 focus:bg-white/8 transition-all pr-12 font-mono"
                 />
                 <button
                   type="button"
@@ -192,12 +233,12 @@ export default function BusinessPreview() {
 
             <button
               type="submit"
-              disabled={loading || !code.trim() || !dob}
+              disabled={loading || !code.trim()}
               className="w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   Verifying…
                 </>
               ) : (
@@ -211,9 +252,9 @@ export default function BusinessPreview() {
           <div className="mt-8 pt-6 border-t border-white/8 text-center">
             <p className="text-gray-600 text-xs">
               Don&apos;t have a code?{" "}
-              <a href="/#contact" className="text-blue-400 hover:text-blue-300 transition-colors">
+              <Link href="/#contact" className="text-[#ccff00] hover:text-[#aee000] transition-colors">
                 Contact us →
-              </a>
+              </Link>
             </p>
           </div>
         </div>

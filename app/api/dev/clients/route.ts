@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { isDev } from "@/lib/devAuth";
 import { generateAccessCode, hashCode } from "@/lib/clients";
 import { getSupabaseAdmin, PREVIEW_BUCKET } from "@/lib/supabase";
+import { listAllKeys } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
-const COLUMNS = "id, slug, name, industry, status, preview_ready, deploy_url, dob, expires_at, created_at";
+// Select everything that exists so the dashboard works before AND after the
+// v2 analytics migration (an explicit v2 column list would 400 on an old DB).
+const COLUMNS = "*";
 
 function slugify(s: string): string {
   return s
@@ -15,19 +17,6 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
-}
-
-/** Recursively collect every object key under a storage prefix (Supabase list is shallow). */
-async function listAllKeys(admin: SupabaseClient, prefix: string): Promise<string[]> {
-  const out: string[] = [];
-  const { data } = await admin.storage.from(PREVIEW_BUCKET).list(prefix, { limit: 1000 });
-  for (const entry of data ?? []) {
-    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    // Folder placeholders come back with a null id — recurse into them.
-    if ((entry as { id: string | null }).id === null) out.push(...(await listAllKeys(admin, path)));
-    else out.push(path);
-  }
-  return out;
 }
 
 export async function GET(req: NextRequest) {
@@ -44,12 +33,9 @@ export async function POST(req: NextRequest) {
   if (!isDev(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const name = String(body?.name ?? "").trim();
-  const industry = String(body?.industry ?? "").trim() || null;
-  const dob = String(body?.dob ?? "").trim() || null;
-  const slugInput = String(body?.slug ?? "").trim();
+  const slugInput = String(body?.slug ?? "").trim(); // optional custom slug
 
   if (!name) return NextResponse.json({ error: "Name is required." }, { status: 400 });
-  if (!dob) return NextResponse.json({ error: "Date of birth is required (the client's personal login factor)." }, { status: 400 });
 
   // Codes are always generated here — a 64-char random string. We store only its
   // hash and return the plaintext once so the dev can copy it across to the client.
@@ -65,11 +51,17 @@ export async function POST(req: NextRequest) {
   let n = 1;
   while (used.has(candidate)) { n++; candidate = `${base}-${n}`; }
 
-  const { data, error } = await admin
+  const baseRow = { slug: candidate, name, code_hash: hashCode(code), status: "active", preview_ready: false };
+  // Keep the plaintext code too, so it's recoverable. Falls back gracefully if
+  // the access_code column isn't there yet (pre-migration DB).
+  let { data, error } = await admin
     .from("clients")
-    .insert({ slug: candidate, name, industry, dob, code_hash: hashCode(code), status: "active", preview_ready: false })
+    .insert({ ...baseRow, access_code: code })
     .select(COLUMNS)
     .single();
+  if (error && /access_code/i.test(error.message)) {
+    ({ data, error } = await admin.from("clients").insert(baseRow).select(COLUMNS).single());
+  }
 
   if (error) {
     const msg = /duplicate|unique/i.test(error.message)
@@ -89,24 +81,24 @@ export async function PATCH(req: NextRequest) {
   const patch: Record<string, unknown> = {};
   if (typeof body.status === "string" && ["active", "disabled"].includes(body.status)) patch.status = body.status;
   if (typeof body.preview_ready === "boolean") patch.preview_ready = body.preview_ready;
-  if (typeof body.deploy_url === "string") patch.deploy_url = body.deploy_url.trim() || null;
-  else if (body.deploy_url === null) patch.deploy_url = null;
 
   // Optionally mint a fresh 64-char code (old one stops working) and return it once.
   let newCode: string | null = null;
   if (body.regenerate === true) {
     newCode = generateAccessCode(64);
     patch.code_hash = hashCode(newCode);
+    patch.access_code = newCode; // keep the recoverable plaintext in sync
   }
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
 
-  const { data, error } = await getSupabaseAdmin()
-    .from("clients")
-    .update(patch)
-    .eq("slug", slug)
-    .select(COLUMNS)
-    .single();
+  const admin = getSupabaseAdmin();
+  let { data, error } = await admin.from("clients").update(patch).eq("slug", slug).select(COLUMNS).single();
+  // Pre-migration DB without access_code: retry without it (hash still rotates).
+  if (error && /access_code/i.test(error.message)) {
+    delete patch.access_code;
+    ({ data, error } = await admin.from("clients").update(patch).eq("slug", slug).select(COLUMNS).single());
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ client: data, code: newCode });
 }

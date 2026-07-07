@@ -2,21 +2,21 @@
  * Add (or update) a GES client directly in Supabase from the CLI.
  *
  * Usage:
- *   node --env-file=.env.local scripts/add-client.mjs "Business Name" [slug] [industry]
+ *   node --env-file=.env.local scripts/add-client.mjs "Business Name" [slug]
  *
- * A 64-character access code is generated automatically and printed once
- * (only its SHA-256 hash is stored). Re-running for an existing slug rotates
- * the code. Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.
+ * A 64-character access code is generated automatically, stored (hash + plaintext
+ * for recovery) and printed. Re-running for an existing slug rotates the code.
+ * Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.
  * After adding, upload the client's built site in the dashboard
  * (/Developer-Dashboard-Page) or into Storage → client-previews/<slug>/.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
-const [, , name, slugArg, industryArg] = process.argv;
+const [, , name, slugArg] = process.argv;
 
 if (!name) {
-  console.error('Usage: node --env-file=.env.local scripts/add-client.mjs "Business Name" [slug] [industry]');
+  console.error('Usage: node --env-file=.env.local scripts/add-client.mjs "Business Name" [slug]');
   process.exit(1);
 }
 
@@ -55,10 +55,10 @@ const supabase = createClient(url, key, { auth: { persistSession: false } });
 const { data, error } = await supabase
   .from("clients")
   .upsert(
-    { slug, name, industry: industryArg || null, code_hash, status: "active", preview_ready: false },
+    { slug, name, code_hash, access_code: code, status: "active", preview_ready: false },
     { onConflict: "slug" }
   )
-  .select("slug, name, industry, status, preview_ready")
+  .select("slug, name, status, preview_ready")
   .single();
 
 if (error) {

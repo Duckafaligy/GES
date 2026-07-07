@@ -1,29 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { signToken, DEV_TTL_MS } from "@/lib/session";
+import { checkLock, registerFailure, registerSuccess, clientIp } from "@/lib/throttle";
 
 export const runtime = "nodejs";
 
+// Convenience defaults used ONLY outside production (local `next dev`) so the
+// dashboard works with zero env setup. In production DEV_DASHBOARD_PASSWORD /
+// DEV_DASHBOARD_DOB are required — the in-repo defaults can never log into a
+// live deploy. Set your real date of birth (YYYY-MM-DD) in DEV_DASHBOARD_DOB.
+const DEFAULT_DEV_PASSWORD = "Brendan!202";
+const DEFAULT_DEV_DOB = "2011-02-12"; // dev default — override via DEV_DASHBOARD_DOB in prod
+
+/** Constant-time string compare that avoids leaking length via early return. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json();
-    const expected = process.env.DEV_DASHBOARD_PASSWORD;
+    const ip = clientIp(req);
 
-    if (!expected) {
+    // Escalating lockout: bail before checking the password if this IP is locked.
+    const lock = await checkLock("dev-login", ip);
+    if (lock.locked) {
+      return NextResponse.json({ error: lock.message }, {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(lock.retryAfterMs / 1000)) },
+      });
+    }
+
+    const { password, dob } = await req.json();
+    const isProd = process.env.NODE_ENV === "production";
+    const expectedPw = process.env.DEV_DASHBOARD_PASSWORD || (isProd ? "" : DEFAULT_DEV_PASSWORD);
+    const expectedDob = process.env.DEV_DASHBOARD_DOB || (isProd ? "" : DEFAULT_DEV_DOB);
+
+    if (!expectedPw || !expectedDob) {
       return NextResponse.json(
-        { error: "Dashboard password is not configured on the server." },
+        { error: "Dashboard login is not configured. Set DEV_DASHBOARD_PASSWORD and DEV_DASHBOARD_DOB." },
         { status: 500 }
       );
     }
     if (typeof password !== "string" || password.length === 0) {
       return NextResponse.json({ error: "Password required." }, { status: 400 });
     }
+    if (typeof dob !== "string" || dob.length === 0) {
+      return NextResponse.json({ error: "Date of birth required." }, { status: 400 });
+    }
 
-    const a = Buffer.from(password);
-    const b = Buffer.from(expected);
-    const ok = a.length === b.length && timingSafeEqual(a, b);
-    if (!ok) return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
+    // Both factors must match. One generic message so neither is enumerable.
+    const ok = safeEqual(password, expectedPw) && safeEqual(dob.trim(), expectedDob.trim());
+    if (!ok) {
+      const after = await registerFailure("dev-login", ip);
+      // If that failure tripped a lockout, tell them how long; else the generic message.
+      return NextResponse.json(
+        { error: after.locked ? after.message : "Incorrect password or date of birth." },
+        { status: after.locked ? 429 : 401,
+          ...(after.locked ? { headers: { "Retry-After": String(Math.ceil(after.retryAfterMs / 1000)) } } : {}) }
+      );
+    }
 
+    await registerSuccess("dev-login", ip);
     // Returned to the browser and held in sessionStorage only (no cookie).
     const token = signToken("dev", "dev", DEV_TTL_MS);
     return NextResponse.json({ token });

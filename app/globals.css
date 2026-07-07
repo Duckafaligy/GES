@@ -9,7 +9,7 @@
 :root {
   --ink: #0a0a0a;
   --paper: #ffffff;
-  --bone: #efeee7;       /* warm off-white panel */
+  --bone: #e8dec8;       /* warm beige / sand panel (clearly not white) */
   --acid: #ccff00;       /* primary accent — the brand pop (logo, hero, highlights) */
   --acid-deep: #aee000;
   --amber: #e0a11e;      /* secondary accent — warm, used sparingly (eyebrows, stat ticks) */
@@ -24,6 +24,13 @@
 
   html {
     scroll-behavior: smooth;
+    /* Offset in-page anchor jumps (#services, #contact…) so section headers
+       land BELOW the ~92px fixed nav + ticker instead of hiding under it. */
+    scroll-padding-top: 6.5rem;
+    /* Firefox scrollbar (WebKit styled separately below) — keep it on-brand
+       across browsers instead of falling back to the chunky OS default. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--ash) var(--ink);
   }
 
   body {
@@ -32,6 +39,28 @@
     font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Faint film grain over everything — adds tactile depth so the flat
+     black/white surfaces don't read as a plain template. Sits on top, never
+     intercepts clicks, and is invisible to print/reduced-data. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+  }
+
+  /* Keyboard focus — a crisp acid ring on interactive elements (mouse clicks
+     stay clean via :focus-visible). */
+  :focus-visible {
+    outline: 2px solid var(--acid);
+    outline-offset: 2px;
   }
 
   ::selection {
@@ -58,10 +87,10 @@
 /* ── Section theme contexts ──
    Each <section> chooses one. Children read --fg / --bg / --line / --muted,
    so the same brutalist primitives invert automatically on dark blocks. */
-.sec-light { --bg: var(--paper); --fg: var(--ink);   --line: var(--ink);   --muted: #5f5f5f; background: var(--bg); color: var(--fg); }
-.sec-bone  { --bg: var(--bone);  --fg: var(--ink);   --line: var(--ink);   --muted: #5f5f5f; background: var(--bg); color: var(--fg); }
-.sec-dark  { --bg: var(--ink);   --fg: var(--paper); --line: var(--paper); --muted: #9a9a9a; background: var(--bg); color: var(--fg); }
-.sec-acid  { --bg: var(--acid);  --fg: var(--ink);   --line: var(--ink);   --muted: #44480f; background: var(--bg); color: var(--fg); }
+.sec-light { --bg: var(--paper); --fg: var(--ink);   --line: var(--ink);   --muted: #4c4c4c; background: var(--bg); color: var(--fg); }
+.sec-bone  { --bg: var(--bone);  --fg: var(--ink);   --line: var(--ink);   --muted: #494941; background: var(--bg); color: var(--fg); }
+.sec-dark  { --bg: var(--ink);   --fg: var(--paper); --line: var(--paper); --muted: #b6b6b6; background: var(--bg); color: var(--fg); }
+.sec-acid  { --bg: var(--acid);  --fg: var(--ink);   --line: var(--ink);   --muted: #3d400d; background: var(--bg); color: var(--fg); }
 
 /* ── Hard-edged surfaces ── */
 .hard     { border: 2px solid var(--line); box-shadow: 6px 6px 0 0 var(--line); }
@@ -71,6 +100,31 @@
 
 .lift { transition: transform 0.14s ease, box-shadow 0.14s ease; }
 .lift:hover { transform: translate(-3px, -3px); box-shadow: 10px 10px 0 0 var(--line); }
+
+/* Acid-glow hover for dark internal surfaces (dashboard cards):
+   the offset shadow flips to the brand acid on hover. */
+.hover-acid { transition: box-shadow 0.16s ease, border-color 0.16s ease; }
+.hover-acid:hover { box-shadow: 6px 6px 0 0 var(--acid); }
+
+/* Soft ambient acid glow bleeding from behind an element (depth on dark blocks).
+   Lives in a -z layer so it never washes out the text on top. */
+.glow-acid { position: relative; isolation: isolate; }
+.glow-acid::before,
+.glow-amber::before {
+  content: "";
+  position: absolute;
+  left: -6%;
+  top: 50%;
+  width: 60%;
+  height: 150%;
+  transform: translateY(-50%);
+  filter: blur(46px);
+  z-index: -1;
+  pointer-events: none;
+}
+.glow-acid::before  { background: radial-gradient(closest-side, color-mix(in srgb, var(--acid) 20%, transparent), transparent 70%); }
+.glow-amber { position: relative; isolation: isolate; }
+.glow-amber::before { background: radial-gradient(closest-side, color-mix(in srgb, var(--amber) 22%, transparent), transparent 70%); }
 
 /* ── Mono label / eyebrow ── */
 .mono { font-family: var(--font-mono), ui-monospace, monospace; }
@@ -189,30 +243,32 @@
 /* ============================================================
    PORTAL / GLASS SYSTEM  (client login + preview only)
    Deliberately separate from the brutalist landing: soft, dark,
-   frosted, premium. The landing stays hard-edged; the portal
-   feels like a private, high-end client area.
+   frosted, premium — but unmistakably GES (acid lime + amber on
+   near-black), so the private client area shares the brand.
    ============================================================ */
 
-/* Faint construction grid for dark portal backgrounds */
+/* Faint construction grid for dark portal backgrounds (acid-tinted) */
 .grid-pattern {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(204, 255, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(204, 255, 0, 0.05) 1px, transparent 1px);
   background-size: 38px 38px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, #000 30%, transparent 75%);
 }
 
-/* Frosted glass panel */
+/* Frosted glass panel — acid-edged */
 .glass {
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  border: 1px solid rgba(204, 255, 0, 0.12);
   box-shadow:
-    0 24px 70px -24px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 24px 70px -24px rgba(0, 0, 0, 0.82),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* Gradient primary action (portal only) */
+/* Primary action (portal only) — acid fill, black ink, lime glow */
 .btn-primary {
   position: relative;
   display: inline-flex;
@@ -221,16 +277,16 @@
   gap: 0.5rem;
   padding: 0.95rem 1.5rem;
   border-radius: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.01em;
-  color: #fff;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #a855f7 100%);
-  box-shadow: 0 14px 34px -10px rgba(99, 102, 241, 0.6);
+  color: #0a0a0a;
+  background: linear-gradient(135deg, var(--acid) 0%, var(--acid-deep) 100%);
+  box-shadow: 0 14px 34px -10px rgba(204, 255, 0, 0.5);
   transition: box-shadow 0.25s ease, transform 0.15s ease, filter 0.2s ease;
   cursor: pointer;
 }
-.btn-primary:hover  { filter: brightness(1.08); box-shadow: 0 18px 44px -10px rgba(99, 102, 241, 0.78); }
+.btn-primary:hover  { filter: brightness(1.06); box-shadow: 0 18px 46px -8px rgba(204, 255, 0, 0.7); transform: translateY(-1px); }
 .btn-primary:active { transform: translateY(1px); }
 
 /* Ambient floating blobs */
@@ -240,3 +296,33 @@
 }
 .animate-float    { animation: float 11s ease-in-out infinite; }
 .animate-float-d1 { animation: float 13s ease-in-out infinite; animation-delay: -4s; }
+
+/* ── Respect reduced-motion: tame looping/heavy motion for users who ask ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marquee-track,
+  .animate-float,
+  .animate-float-d1,
+  .blink { animation: none !important; }
+}
+
+/* ── Loading skeleton shimmer (dashboard) ── */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--line) 10%, transparent);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--line) 14%, transparent), transparent);
+  animation: shimmer 1.4s infinite;
+}

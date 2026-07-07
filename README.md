@@ -57,7 +57,7 @@ app/
   api/                Route handlers (server-side endpoints)
   (site)/             Route group: standalone content pages (footer Services + Legal links); its layout renders a solid nav + the footer
     services/{local-business-sites,e-commerce-websites,3d-product-models}/
-    privacy-policy/ , terms-of-service/
+    privacy-policy/ , terms-of-service/ , faq/ (blog-style FAQ hub)
 components/
   Navigation.tsx      Sticky top nav + marquee ticker; `forceSolid` mode for light pages + logo routes to the first section
   VideoHero.tsx       Full-bleed background hero video with a self-learning seamless loop
@@ -67,19 +67,32 @@ components/
   Services.tsx        Services grid (E-Commerce · 3D · Agents/Workflows/Automation)
   Pricing.tsx         Pricing (kept understated — framed as an advantage)
   Process.tsx         Process / how-we-work timeline
-  Stats.tsx           Headline stats band
-  Contact.tsx         Contact / book-a-call section
+  Work.tsx            Selected Work (CLIME demo + OTDP live) — status pills, est. build value + price breakdown
+  Contact.tsx         Contact + "Book a discovery call" trigger
+  CustomCursor.tsx    Signature acid cursor ring (desktop fine-pointer only; off for touch + reduced-motion)
+  BookCall.tsx        Branded booking flow (email-verify → month calendar → details → confirm). Modal on the `ges:book` event, AND `<BookCall inline />` renders it as a section above the footer
+  MonthCalendar.tsx   Calendly-style month grid (shared by the booking flow + the manage page)
+  ScrollProgress.tsx  Spring scroll-progress bar (bottom edge)
   Footer.tsx          Footer — wordmark + working link columns (Services / Company / Legal)
   ServiceDetail.tsx   Data-driven layout for the 3 service pages (hero · features · deliverables · CTA)
   LegalDoc.tsx        Data-driven layout for the legal pages (Privacy Policy, Terms of Service)
-lib/clients.ts        Client lookup (Supabase Postgres) — by access code and by slug
+  FaqDoc.tsx          Data-driven, accordion FAQ page (the /faq "resources" hub)
+lib/clients.ts        Client model + lookup (by code / by slug) + view tracking
+lib/booking.ts        Shared booking slots/date helpers (used by the modal AND the API)
 lib/supabase.ts       Server-only Supabase service-role client (lazy)
 lib/session.ts        HMAC-signed, short-lived access tokens (no cookies)
 lib/devAuth.ts        Bearer-token guard for the developer dashboard
-app/api/verify-code/  Access code → short-lived preview token
-app/api/dev/          Dashboard auth + client CRUD + build upload (Bearer-gated)
-app/Developer-Dashboard-Page/   Password-gated internal dashboard (clients + uploads)
-supabase/schema.sql   DB schema + private storage bucket (no demo seed)
+app/api/verify-code/  Access code → short-lived preview token (+ logs the view)
+app/api/preview-meta/ Public, non-sensitive gate personalization (business name + ready, by slug)
+app/api/book/         Public: GET taken slots · POST a booking · manage/ (cancel/reschedule by token)
+app/booking/[token]/  Self-serve manage page — reschedule or cancel from the email link
+app/api/dev/          Dashboard auth + client CRUD + uploads + preview-token + zip download + analytics + bookings (Bearer-gated)
+app/Developer-Dashboard-Page/   Password-gated dashboard (bookings, clients, per-client preview/upload/analytics)
+supabase/schema.sql   Full DB schema (clients + client_views + bookings) + private storage bucket
+lib/settings.ts       Booking availability settings (read/write, defaults if unmigrated)
+app/api/availability/ Public: bookable days + time slots for the modal
+supabase/migrations/  Incremental SQL for existing DBs (v2-analytics-and-codes, v3-bookings, v4-availability, v5-signups, v6-booking-manage, v7-auth-throttle)
+lib/throttle.ts       Apple-style escalating per-IP auth lockout (auth_throttle table)
 scripts/add-client.mjs     CLI: add/update a client in Supabase
 public/
   bike-frames/        192 × frame-0001.webp … frame-0192.webp (2200×1238, exactly 16:9)
@@ -168,21 +181,29 @@ must be re-entered. If a build isn't uploaded/ready, the page shows "Preview is 
 finished — check back in a day."
 
 Manage it all from the **developer dashboard** at `/Developer-Dashboard-Page`
-(gated by `DEV_DASHBOARD_PASSWORD`; the dev token lives in `sessionStorage`, never
-a cookie). Adding a client **auto-generates a 64-character access code** (A–Z a–z
-0–9); only its SHA-256 hash is stored and the plaintext is shown **once** in a copy
-dialog — use **New code** on a client to rotate it. **Upload a built site folder**
-by drag-drop (or picker) — the importer skips `node_modules` / `.git` / `.next`,
-requires an `index.html`, and pushes only web files to Storage, then marks the
-preview ready. Files over ~4 MB are flagged (Vercel's per-request upload limit) —
+(gated by **`DEV_DASHBOARD_PASSWORD` + `DEV_DASHBOARD_DOB`** — both a password and
+a date of birth are required; the dev token lives in `sessionStorage`, never a
+cookie). Adding a client takes just the **business name** (plus an optional
+**custom slug** — leave it blank to auto-derive the slug from the name, e.g.
+`Blooms & Co.` → `blooms-co`, auto-suffixed on collision). It **auto-generates a
+64-character access code** (A–Z a–z 0–9); the plaintext is shown once in a copy
+dialog **and stored on the client row (`access_code`)** so you can recover it
+later from the per-client panel — use **New code** on a client to rotate it.
+**Upload a built site folder** by drag-drop (or picker) — the importer skips
+`node_modules` / `.git` / `.next`, requires an `index.html`, and pushes only web
+files to Storage, then marks the preview ready. **Re-uploading replaces** the
+previous build (old files are cleared first). Files over ~4 MB are flagged (Vercel's per-request upload limit) —
 compress large media or host it elsewhere.
 
 **Setup:** create a Supabase project, run `supabase/schema.sql` in its SQL editor
-(creates the `clients` table + the private `client-previews` bucket), then copy
-`.env.example` to `.env.local` and fill in all four values (`SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `DEV_DASHBOARD_PASSWORD`). For the
-Vercel deployment set those **same four** under Project → Settings → Environment
-Variables. Add clients in the dashboard (recommended) or via
+(creates the `clients` + `client_views` + `bookings` tables and the private
+`client-previews` bucket; an existing DB instead runs the migrations under
+`supabase/migrations/`),
+then copy `.env.example` to `.env.local` and fill in all five values
+(`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`,
+`DEV_DASHBOARD_PASSWORD`, `DEV_DASHBOARD_DOB`). For the Vercel deployment set those
+**same five** under Project → Settings → Environment Variables. Add clients in the
+dashboard (recommended) or via
 `node --env-file=.env.local scripts/add-client.mjs "Business Name"` — the script
 prints the generated access code.
 
@@ -248,6 +269,143 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 - Green (`--acid`) = branding/highlights only. Amber = sparse warmth accents.
 
 ## Recent changes
+
+### v0.10.0 — Apple-style auth lockout
+- **Escalating per-IP lockout** on the auth endpoints (dashboard login, booking
+  signup code, and client access code). After **5 wrong attempts** an IP is
+  locked **1 minute**; each further wrong attempt escalates — **5m → 15m → 60m**
+  (capped). A successful auth clears the record. Locked requests get a `429` with
+  a `Retry-After` header and a friendly "try again in N minutes" message.
+- Backed by a DB table (`auth_throttle`, **v7 migration**) keyed by
+  `"<scope>:<ip>"`, so the lockout holds across serverless instances and cold
+  starts — not just per-process memory. Logic lives in `lib/throttle.ts`
+  (`checkLock` before the credential check, `registerFailure` after a miss,
+  `registerSuccess` on success). **Fails open** until the v7 migration is run, so
+  nothing breaks pre-migration — run it to activate the protection.
+
+### v0.9.0 — Selected Work, FAQ hub, landing polish
+- **Selected Work section.** Two real builds front-and-center: **CLIME**
+  (labelled a full **website demo** — an example, not a live org) and **OTDP**
+  (a **live, real organization**). Each card shows a status pill, an **est. build
+  value** (CLIME ~$2,200, OTDP ~$1,400) and a small **price breakdown** with
+  dotted leaders, noted as indicative — exact quote comes on the call. The
+  Process timeline now sits **below** the examples.
+- **FAQ "resources" hub (`/faq`).** Instead of an inline accordion, FAQs live on
+  their own blog-style page (`FaqDoc.tsx`): dark glow header, light body,
+  animated accordion categories (Pricing, Ownership buy-out vs rent, Process,
+  3D/Tech, Working Together) and a CTA back to booking. Linked from the footer.
+- **No public quote builder — on purpose.** We surface price ranges on the demo
+  cards and talk specifics on the call; a public pricing/quote tool was
+  deliberately left out so it doesn't anchor or deter bookings.
+- **Landing micro-interactions.** A signature **acid cursor ring**
+  (`CustomCursor.tsx`) trails the pointer and grows over interactive elements —
+  desktop fine-pointer only, disabled for touch and reduced-motion, with the
+  native cursor left intact.
+
+### v0.8.0 — on-site booking + dashboard leads
+- **Calendly-style calendar + email sign-up gate.** The booking modal is now a
+  real **month-grid calendar** (two-pane: calendar left, ET times right; bookable
+  days outlined, selected day acid, off days dimmed). Before scheduling, a
+  prospect must **verify their email**: enter it → we email a 6-digit code
+  (`/api/signup`) → verify (`/api/signup/verify`) → they get a one-time
+  **welcome email** and a short-lived signed booker token that `/api/book` now
+  requires — so every booking is tied to a proven inbox (no junk bookings). On
+  booking, the prospect also gets a **confirmation email with the .ics attached**.
+  Verified state persists for the session (`booking_signups` table, v5 migration).
+  ⚠ Codes/welcome/confirmation emails reach **any** address only once a domain is
+  verified in Resend; on the shared sandbox sender they only reach the account
+  owner. If Resend isn't configured at all, the gate disables itself so booking
+  still works.
+- **Availability settings.** A dashboard **Availability** panel controls which
+  weekdays + time slots are bookable, blocks specific dates (vacations), and sets
+  how many days ahead to show. The modal reads it from `/api/availability`; the
+  server validates every booking against it. Stored in `booking_settings`
+  (single row), with defaults that mirror the original behavior pre-migration.
+- **Book a discovery call, on-brand.** "Book a Meeting" (hero) and the Contact
+  card open a branded modal: pick a weekday → pick an ET time slot (already-taken
+  slots are greyed out) → name/email/business/notes → confirmation. No third-party
+  embed; it's GES through and through. Saves to a new `bookings` table (one meeting
+  per slot, enforced by a unique constraint).
+- **Bookings land in the dashboard.** A new **Bookings** panel shows every lead
+  (date/time, name, email, business, notes) with a "new" count, mark-done and
+  delete. New routes `app/api/book` (public) and `app/api/dev/bookings` (gated).
+- **Email notification (Resend).** When the `RESEND_API_KEY` + `BOOKING_NOTIFY_EMAIL`
+  env vars are set, every booking emails you the lead's details + an `.ics`
+  attachment (`lib/email.ts`, one fetch, no SDK) — no domain verification needed
+  to email yourself. Best-effort, never blocks the booking.
+- **Self-serve reschedule / cancel.** The confirmation email carries a signed
+  manage link (`/booking/<token>`, 60-day token) where the prospect can cancel
+  (frees the slot) or reschedule via the same calendar — `app/api/book/manage`.
+  A partial unique index (v6 migration) means cancelled slots open back up while
+  active double-booking is still blocked.
+- **Calendar everywhere.** Confirmation offers "Add to Google Calendar" + an
+  `.ics` (Apple/Outlook) with a reminder, GES added as a guest. And if the
+  Google service-account env vars are set (`GOOGLE_SERVICE_ACCOUNT_EMAIL` /
+  `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID`), the server auto-creates the event
+  on GES's Google Calendar on every booking (`lib/gcal.ts`, signed-JWT service
+  account, no extra deps) so you're notified — best-effort, never blocks a lead.
+- **Graceful pre-migration.** Until you run
+  `supabase/migrations/2026-06-11-v3-bookings.sql`, the slot list reads empty and
+  the modal/dashboard show a clear "run the migration" message instead of breaking.
+- Also: dashboard restructured to per-client **Manage** panels (live preview
+  thumbnail + access code + upload/replace + analytics; the standalone target-client
+  uploader is gone); the beige (`--bone`) was warmed so it no longer reads as white.
+
+### v0.7.0 — viewer analytics, personalized portal
+- **Viewer analytics in the dashboard.** Every successful access-code entry is
+  logged. Each client card shows a **Viewed / Not viewed** badge and an inline
+  "👁 viewed 2h ago · 3×" signal; an expandable **Analytics** panel shows
+  **total opens, first open, last open**, and a full **open timeline** (each
+  visit, newest first). The stat strip adds **Viewed by client** and **Total
+  views**. So you know exactly when a prospect opened their preview — and how
+  often — to time the follow-up call.
+- **How it's stored.** Aggregate counters (`view_count`, `first_viewed_at`,
+  `last_viewed_at`) live on the client row for fast list display; a
+  `client_views` event-log table holds one row per open for the timeline.
+  Recording is best-effort and never blocks the client's login.
+- **Personalized client portal.** The gate greets the prospect by business name
+  (via the public, non-sensitive `/api/preview-meta` — business name + ready
+  only, no codes or analytics); the authed header shows the
+  business name; an unknown slug gets a proper "No preview at this address" page
+  instead of a code box that can never work.
+- **Recoverable access codes.** The generated 64-char code is now also stored in
+  plaintext on the client row (`access_code`) and revealed (show/copy) from the
+  per-client panel — so a forgotten code can be looked up later instead of being
+  rotated. (Trade-off: codes are readable by anyone with DB access; fine for these
+  low-stakes preview gates.)
+- **Two-factor dashboard login.** `/Developer-Dashboard-Page` now requires a
+  **password *and* a date of birth** (`DEV_DASHBOARD_PASSWORD` + `DEV_DASHBOARD_DOB`),
+  both checked constant-time with a single generic error.
+- **Add Client simplified.** The form is now just **business name + optional
+  custom slug** (with a live `/preview/<slug>` preview); the **industry** field
+  was removed everywhere. **Re-uploading a build cleanly replaces** the old one
+  (existing files are wiped first) so nothing stale lingers.
+- **Schema v2 + graceful migration.** `supabase/schema.sql` creates the full v2
+  schema (analytics columns + `access_code` + `client_views`); existing DBs run
+  `supabase/migrations/2026-06-11-v2-analytics-and-codes.sql`. The app **runs on a
+  pre-migration DB** — analytics read as zero/empty and code storage falls back
+  until you migrate.
+- Earlier in this line: portal rebranded to GES acid/amber glass; dashboard
+  search/skeletons/error states; sandboxed preview iframe; production requires
+  real env vars; fixed the doubled `<base href>` that broke relative-path
+  builds; fixed the flaky hero video loop; anchor-scroll offset + focus rings;
+  reduced-motion support; OpenGraph/Twitter metadata.
+
+### v0.6.0 — view + download builds, zero-setup dashboard access
+- **View & Download per client.** Each client row in the dashboard now has a
+  **View** (opens the live build in a new tab via a dev-minted preview token — no
+  client code needed) and **Download** (saves the uploaded build as a `.zip`).
+  Both are Bearer-gated and enabled once a build is live. New routes
+  `app/api/dev/preview-token/` and `app/api/dev/download/`; the zip is built by a
+  dependency-free writer in `lib/zip.ts` (STORE method + CRC32), and the recursive
+  storage walk now lives in `lib/storage.ts` (shared by clients + download).
+- **Works out of the box.** The dashboard password defaults to `Brendan!202` and
+  `SESSION_SECRET` has a built-in fallback, so login works with no env setup. ⚠
+  Both defaults live in the repo — **set `DEV_DASHBOARD_PASSWORD` and a real
+  `SESSION_SECRET` in production** (`.env.local` + Vercel) to override them.
+- **Clearer upload help.** The uploader spells out the workflow: build locally
+  (`npm install` → `npm run build`), then upload the `dist/`/`out/` output —
+  `node_modules`/`.git`/`.next` are skipped and never need uploading.
 
 ### v0.5.0 — generated codes + full-render previews
 - **Access codes are auto-generated.** The manual code field is gone; adding a
