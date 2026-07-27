@@ -101,6 +101,7 @@ export default function VideoHero() {
 
   return (
     <section
+      id="hero"
       ref={ref}
       className="sec-dark relative min-h-screen flex items-center overflow-hidden"
     >

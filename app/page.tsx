@@ -3,7 +3,6 @@ import CustomCursor from "@/components/CustomCursor";
 import BookCall from "@/components/BookCall";
 import ScrollProgress from "@/components/ScrollProgress";
 import VideoHero from "@/components/VideoHero";
-import BikeShowcase from "@/components/BikeShowcase";
 import Services from "@/components/Services";
 import Pricing from "@/components/Pricing";
 import ThreeDFeatures from "@/components/ThreeDFeatures";
@@ -21,7 +20,6 @@ export default function Home() {
       <Navigation />
       <main>
         <VideoHero />
-        <BikeShowcase />
         <Services />
         <Pricing />
         <ThreeDFeatures />
