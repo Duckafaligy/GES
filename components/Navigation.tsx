@@ -44,16 +44,16 @@ export default function Navigation({ forceSolid = false }: { forceSolid?: boolea
     }
   };
 
-  // Stay transparent (black, light text) across the two dark hero sections —
-  // VideoHero + the tall BikeShowcase. Only switch to the solid bar once the
-  // showcase (#showcase) has scrolled up behind the fixed nav, i.e. the visible
-  // viewport is now the light Services section and everything after it.
+  // Stay transparent (black, light text) over the dark VideoHero. Only switch
+  // to the solid bar once the hero (#hero) has scrolled up behind the fixed
+  // nav, i.e. the visible viewport is now the light Services section and
+  // everything after it.
   useEffect(() => {
     const onScroll = () => {
-      const showcase = document.getElementById("showcase");
+      const hero = document.getElementById("hero");
       const navH = navRef.current?.offsetHeight ?? 92;
-      if (showcase) {
-        setScrolled(showcase.getBoundingClientRect().bottom <= navH);
+      if (hero) {
+        setScrolled(hero.getBoundingClientRect().bottom <= navH);
       } else {
         setScrolled(window.scrollY > 60); // fallback if the section isn't present
       }
