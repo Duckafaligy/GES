@@ -270,6 +270,21 @@ Defined as CSS custom properties and utilities in `app/globals.css`.
 
 ## Recent changes
 
+### v0.11.0 — client-side preview export
+- **Owner export:** the client preview (`/preview/<slug>`) now has a **Download
+  .zip** action in its header, so the business owner can export the exact build
+  we uploaded — the mirror of the developer's folder import. Collapses to an icon
+  on mobile; failures surface in a dismissible inline banner.
+- Served by `app/api/preview-download`, gated by the **same short-lived preview
+  token** as `/raw/<token>`. The token is sent as an `Authorization: Bearer`
+  header (never in the URL, so it can't leak via history or access logs), and the
+  live client row is re-checked on every request — disabling or deleting a client
+  revokes downloads immediately. Reuses `lib/zip.ts` + `lib/storage.ts`; the
+  `<slug>/` prefix is stripped so the archive extracts to the build root.
+- Homepage: removed the `BikeShowcase` scroll section (nav transparency now keys
+  off the hero's `#hero` anchor) and brought the Selected Work build values down
+  to realistic figures, with each itemized breakdown re-summed to its headline.
+
 ### v0.10.0 — Apple-style auth lockout
 - **Escalating per-IP lockout** on the auth endpoints (dashboard login, booking
   signup code, and client access code). After **5 wrong attempts** an IP is

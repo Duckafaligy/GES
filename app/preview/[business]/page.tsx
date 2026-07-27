@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, ArrowRight, Globe, Eye, EyeOff, XCircle, X } from "lucide-react";
+import { Lock, ArrowRight, Globe, Eye, EyeOff, XCircle, X, Download } from "lucide-react";
 import Link from "next/link";
 
 const b64urlDecode = (s: string) => {
@@ -34,6 +34,9 @@ export default function BusinessPreview() {
   // Personalization: business name for this slug (null = unknown/404).
   const [meta, setMeta] = useState<{ name: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // Owner export: zipping happens server-side, so show progress + any failure.
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
 
   useEffect(() => {
     const key = `ges_pt_${business}`;
@@ -93,6 +96,38 @@ export default function BusinessPreview() {
     setLoading(false);
   }
 
+  // Export the whole build as a .zip. The token travels in the Authorization
+  // header (never the URL), so we fetch the blob and save it client-side.
+  async function download() {
+    if (!token || downloading) return;
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      const res = await fetch("/api/preview-download", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setDownloadError(d.error ?? "Download failed. Please try again.");
+        if (res.status === 401) exit();
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${business}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError("Network error. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (!checked) return <div className="min-h-screen bg-[#070707]" />;
 
   // ── Authed: show the gated build full-screen ──
@@ -105,10 +140,47 @@ export default function BusinessPreview() {
             <Lock size={11} /> GES Client Preview
             {meta?.name && <span className="hidden sm:inline text-gray-400 normal-case tracking-normal font-normal">— {meta.name}</span>}
           </span>
-          <button onClick={exit} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs">
-            <X size={13} /> Exit preview
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={download}
+              disabled={downloading}
+              title="Download this preview as a .zip"
+              className="flex items-center gap-1.5 rounded-full border border-[#ccff00]/30 bg-[#ccff00]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#ccff00] transition-colors hover:bg-[#ccff00]/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {downloading ? (
+                <>
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#ccff00]/30 border-t-[#ccff00]" />
+                  <span className="hidden sm:inline">Preparing…</span>
+                </>
+              ) : (
+                <>
+                  <Download size={12} />
+                  <span className="hidden sm:inline">Download .zip</span>
+                </>
+              )}
+            </button>
+            <button onClick={exit} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs">
+              <X size={13} /> <span className="hidden sm:inline">Exit preview</span>
+            </button>
+          </div>
         </div>
+
+        <AnimatePresence>
+          {downloadError && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex flex-shrink-0 items-center gap-2 border-b border-red-500/20 bg-red-500/10 px-5 py-2 text-xs text-red-400"
+            >
+              <XCircle size={13} className="flex-shrink-0" />
+              {downloadError}
+              <button onClick={() => setDownloadError("")} className="ml-auto text-red-400/70 hover:text-red-300" aria-label="Dismiss">
+                <X size={13} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Sandbox without allow-same-origin: the uploaded build runs as an
             opaque origin, so its scripts can't read this page's sessionStorage
             (the preview token). Static assets still load over /raw/<token>/. */}
